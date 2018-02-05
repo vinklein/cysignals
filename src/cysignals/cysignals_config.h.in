@@ -28,3 +28,7 @@
 #define cysetjmp(env) setjmp(env)
 #define cylongjmp(env, val) longjmp(env, val)
 #endif
+
+#if !defined(__MINGW32__) && !defined(_WIN32)
+#define POSIX
+#endif

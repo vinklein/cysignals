@@ -1,0 +1,53 @@
+version: 1.0.{build}
+
+build: off
+
+environment:
+
+  matrix:
+
+    # For Python versions available on Appveyor, see
+    # http://www.appveyor.com/docs/installed-software#python
+    # The list here is complete (excluding Python 2.6, which
+    # isn't covered by this document) at the time of writing.
+
+    - PYTHON: "C:\\Python27"
+      TOOLSPATH: "C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+      MAKE: make
+    - PYTHON: "C:\\Python34"
+      TOOLSPATH: "C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+      MAKE: make
+#    - PYTHON: "C:\\Python35"
+#      TOOLSPATH: "C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+#      MAKE: make
+#      CNAME: mingw32
+#    - PYTHON: "C:\\Python36"
+#      TOOLSPATH: "C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+#      MAKE: make
+#      CNAME: mingw32
+    - PYTHON: "C:\\Python27-x64"
+      TOOLSPATH: "C:\\mingw-w64\\x86_64-7.2.0-posix-seh-rt_v5-rev1\\mingw64\\bin;C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+      MAKE: mingw32-make
+    - PYTHON: "C:\\Python34-x64"
+      TOOLSPATH: "C:\\mingw-w64\\x86_64-7.2.0-posix-seh-rt_v5-rev1\\mingw64\\bin;C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+      MAKE: mingw32-make
+#    - PYTHON: "C:\\Python35-x64"
+#      TOOLSPATH: "C:\\mingw-w64\\x86_64-7.2.0-posix-seh-rt_v5-rev1\\mingw64\\bin;C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+#      MAKE: mingw32-make
+#    - PYTHON: "C:\\Python36-x64"
+#      TOOLSPATH: "C:\\mingw-w64\\x86_64-7.2.0-posix-seh-rt_v5-rev1\\mingw64\\bin;C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+#      MAKE: mingw32-make
+
+before_build:
+  - set PATH=%PYTHON%;%PYTHON%\\scripts;%TOOLSPATH%;%PATH%
+  - echo %PATH%
+  - cd C:\projects\cysignals
+  - pip install -r requirements.txt
+  - python --version
+  - python -m cython --version
+
+build_script:
+  - '%MAKE% -j4 install'
+
+test_script:
+  - '%MAKE% -j4 check-all distcheck'

@@ -6,6 +6,8 @@ See ``tests.pyx`` for extensive tests.
 
 #*****************************************************************************
 #       Copyright (C) 2011-2016 Jeroen Demeyer <J.Demeyer@UGent.be>
+#                     2016 Marc Culler and Nathan Dunfield
+#                     2018 Vincent Klein <vinklein@gmail.com>
 #
 #  cysignals is free software: you can redistribute it and/or modify it
 #  under the terms of the GNU Lesser General Public License as published
@@ -32,13 +34,12 @@ cimport cython
 cdef extern from "implementation.c":
     cysigs_t cysigs
     int _set_debug_level(int) nogil
-    void setup_alt_stack() nogil
     void setup_cysignals_handlers() nogil
     void print_backtrace() nogil
     void _sig_on_interrupt_received() nogil
     void _sig_on_recover() nogil
     void _sig_off_warning(const char*, int) nogil
-
+    void setup_alt_stack() nogil
 
 class AlarmInterrupt(KeyboardInterrupt):
     """
@@ -47,8 +48,8 @@ class AlarmInterrupt(KeyboardInterrupt):
     EXAMPLES::
 
         >>> from cysignals import AlarmInterrupt
-        >>> from signal import alarm
-        >>> try:
+        >>> from signal import alarm    # doctest: +SKIP_WINDOWS
+        >>> try:                        # doctest: +SKIP_WINDOWS
         ...     _ = alarm(1)
         ...     while True:
         ...         pass
@@ -57,7 +58,7 @@ class AlarmInterrupt(KeyboardInterrupt):
         alarm!
         >>> from cysignals.signals import sig_print_exception
         >>> import signal
-        >>> sig_print_exception(signal.SIGALRM)
+        >>> sig_print_exception(signal.SIGALRM) # doctest: +SKIP_WINDOWS
         AlarmInterrupt
 
     """
@@ -89,15 +90,13 @@ cdef int sig_raise_exception "sig_raise_exception"(int sig, const char* msg) exc
     if PyErr_Occurred():
         return 0
 
-    if sig == SIGHUP or sig == SIGTERM:
+    if sig == SIGTERM:
         # Redirect stdin from /dev/null to close interactive sessions
         _ = freopen("/dev/null", "r", stdin)
         # This causes Python to exit
         raise SystemExit
     elif sig == SIGINT:
         raise KeyboardInterrupt
-    elif sig == SIGALRM:
-        raise AlarmInterrupt
     elif sig == SIGILL:
         if msg is NULL:
             msg = "Illegal instruction"
@@ -110,16 +109,25 @@ cdef int sig_raise_exception "sig_raise_exception"(int sig, const char* msg) exc
         if msg is NULL:
             msg = "Floating point exception"
         PyErr_SetString(FloatingPointError, msg)
-    elif sig == SIGBUS:
-        if msg is NULL:
-            msg = "Bus error"
-        PyErr_SetString(SignalError, msg)
     elif sig == SIGSEGV:
         if msg is NULL:
             msg = "Segmentation fault"
         PyErr_SetString(SignalError, msg)
-    else:
-        raise SystemError(f"unknown signal number {sig}")
+    IF UNAME_SYSNAME != 'Windows':
+        if sig == SIGHUP:
+            # Redirect stdin from /dev/null to close interactive sessions
+            _ = freopen("/dev/null", "r", stdin)
+            # This causes Python to exit
+            raise SystemExit
+        elif sig == SIGALRM:
+            raise AlarmInterrupt
+        elif sig == SIGBUS:
+            if msg is NULL:
+                msg = "Bus error"
+            PyErr_SetString(SignalError, msg)
+
+    if PyErr_Occurred() is NULL:
+       raise SystemError(f"unknown signal number {sig}")
 
 
 def sig_print_exception(sig, msg=None):
@@ -133,7 +141,7 @@ def sig_print_exception(sig, msg=None):
         >>> import signal
         >>> sig_print_exception(signal.SIGFPE)
         FloatingPointError: Floating point exception
-        >>> sig_print_exception(signal.SIGBUS, "CUSTOM MESSAGE")
+        >>> sig_print_exception(signal.SIGBUS, "CUSTOM MESSAGE") # doctest: +SKIP_WINDOWS
         SignalError: CUSTOM MESSAGE
         >>> sig_print_exception(0)
         SystemError: unknown signal number 0
@@ -142,7 +150,7 @@ def sig_print_exception(sig, msg=None):
 
         >>> sig_print_exception(signal.SIGINT, "ignored")
         KeyboardInterrupt
-        >>> sig_print_exception(signal.SIGALRM, "ignored")
+        >>> sig_print_exception(signal.SIGALRM, "ignored") # doctest: +SKIP_WINDOWS
         AlarmInterrupt
 
     """
@@ -195,6 +203,7 @@ def init_cysignals():
     import signal
     old = signal.signal(signal.SIGINT, python_check_interrupt)
 
+
     setup_alt_stack()
     setup_cysignals_handlers()
 
@@ -202,7 +211,6 @@ def init_cysignals():
     _set_debug_level(2)
 
     return old
-
 
 def _setup_alt_stack():
     """
