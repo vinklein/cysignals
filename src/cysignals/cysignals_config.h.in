@@ -28,3 +28,16 @@
 #define cysetjmp(env) setjmp(env)
 #define cylongjmp(env, val) longjmp(env, val)
 #endif
+
+#if !defined(__MINGW32__) && !defined(_WIN32)
+#define POSIX
+#else
+/*
+define unused signals for windows and give each a different value to compile
+when two or more a these signals are used in the same switch.
+*/
+#define SIGHUP -1
+#define SIGBUS -2
+#define SIGALRM -3
+#define SIGQUIT -4
+#endif

@@ -1,7 +1,23 @@
 #!/usr/bin/env python
 
 from setuptools import setup
+from setuptools.extension import Extension
 from distutils.command.build import build as _build
+import sys
+import os
+
+# if on windows platform, patch distutils lib.
+if sys.platform == "win32":
+    utils_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'winutil')
+    sys.path.append(utils_path)
+    from patchdistutils import runtime_patch
+    runtime_patch()
+
+# Option "-D_hypot=hypot" is mandatory for mingw64
+# See : https://github.com/python/cpython/pull/880
+extensions = [Extension('cysignals_example',
+                        ['cysignals_example.pyx'],
+                        extra_compile_args=['-D_hypot=hypot'])]
 
 
 class build(_build):
@@ -22,6 +38,6 @@ setup(
     version='1.0',
     license='Public Domain',
     setup_requires=["cysignals"],
-    ext_modules=["cysignals_example.pyx"],
+    ext_modules=extensions,
     cmdclass=dict(build=build),
 )

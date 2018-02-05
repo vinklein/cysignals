@@ -64,7 +64,7 @@ static void ms_sleep(long ms)
 #endif
 }
 
-
+#ifdef POSIX
 /* Signal process ``killpid`` with signal ``signum`` after ``ms``
  * milliseconds.  Wait ``interval`` milliseconds, then signal again.
  * Repeat this until ``n`` signals have been sent.
@@ -136,3 +136,43 @@ static void signal_pid_after_delay(int signum, pid_t killpid, long ms, long inte
 
 /* The same as above, but sending ``n`` signals */
 #define signals_after_delay(signum, ms, interval, n) signal_pid_after_delay(signum, getpid(), ms, interval, n)
+#else
+
+/* Struct to pass data to thread */
+typedef struct {
+    int signum;
+    long ms;
+} sad_data, *psad_data;
+
+/* Signal process  with signal ``signum`` after ``ms``
+ * milliseconds.
+ */
+DWORD WINAPI thread_signal_after_delay(LPVOID lpParam) {
+    psad_data param = (psad_data) lpParam;
+    ms_sleep(param->ms);
+    raise(param->signum);
+    return 0;
+}
+
+void signal_after_delay(int signum, long ms)
+{
+    psad_data param = (psad_data) HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY,
+                sizeof(sad_data));
+    param->signum = signum;
+    param->ms = ms;
+
+    HANDLE thread = CreateThread(NULL, 0, thread_signal_after_delay, param, 0, NULL);
+    if(thread)
+    {
+        /* Wait 2 seconds for the signal raise */
+        WaitForSingleObject(thread, 2000);
+        fprintf(stderr, "raise(%i) has not killed the main thread\n", signum);
+    }
+    else
+    {
+        fprintf(stderr, "CreateThread failed\n");
+    }
+    exit(2); /* This should NOT be reached */
+}
+
+#endif
