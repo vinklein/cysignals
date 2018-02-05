@@ -4,7 +4,8 @@ Interrupt and signal handling for Cython
 
 /*****************************************************************************
  *       Copyright (C) 2006 William Stein <wstein@gmail.com>
- *                     2006-2016 Martin Albrecht <martinralbrecht+cysignals@gmail.com>
+ *                     2006-2016 Martin Albrecht <martinralbrecht+cysignals@gmail.com
+ *                     2016 Marc Culler and Nathan Dunfield
  *                     2010-2018 Jeroen Demeyer <J.Demeyer@UGent.be>
  *
  * cysignals is free software: you can redistribute it and/or modify it
@@ -21,6 +22,23 @@ Interrupt and signal handling for Cython
  * along with cysignals.  If not, see <http://www.gnu.org/licenses/>.
  *
  ****************************************************************************/
+#define ENABLE_DEBUG_CYSIGNALS 0
+#if ENABLE_DEBUG_CYSIGNALS
+#define DEBUG(...) fprintf(stderr, __VA_ARGS__); fflush(stderr);
+#else
+#define DEBUG(...)
+#endif
+
+#if HAVE_PARI
+#include <pari/pari.h>
+#else
+/* Fake PARI variables */
+static int PARI_SIGINT_block = 0;
+static int PARI_SIGINT_pending = 0;
+#endif
+
+/* Posix version */
+#if !defined(__MINGW32__) && !defined(_WIN32)
 
 
 #if __USE_FORTIFY_LEVEL
@@ -46,13 +64,6 @@ Interrupt and signal handling for Cython
 #include <sys/prctl.h>
 #endif
 #include <Python.h>
-#if HAVE_PARI
-#include <pari/pari.h>
-#else
-/* Fake PARI variables */
-static int PARI_SIGINT_block = 0;
-static int PARI_SIGINT_pending = 0;
-#endif
 #include "struct_signals.h"
 #include "signals.h"
 
@@ -526,3 +537,310 @@ dienow:
  * signals.pyx. These require some of the above functions, therefore
  * this include must come at the end of this file. */
 #include "macros.h"
+
+#else /* Windows version */
+
+#include <stdio.h>
+#include <string.h>
+#include <limits.h>
+#include <sys/types.h>
+#include <Python.h>
+#include <stdlib.h>
+#include "struct_signals.h"
+#include <windows.h>
+#include <float.h>
+
+#ifndef __MINGW32__
+#  define inline __inline
+#endif
+/* The cysigs object (there is a unique copy of this, shared by all
+ * Cython modules using cysignals) */
+static cysigs_t cysigs;
+static int win32ctrlc;
+
+static void do_raise_exception(int sig);
+static void sigdie(int sig, const char* s);
+static void print_backtrace(void);
+static void setup_cysignals_handlers(void);
+static void cysigs_interrupt_handler(int sig);
+static void cysigs_signal_handler(int sig);
+
+/* Do whatever is needed to reset the CPU to a sane state after
+ * handling a signals.  In particular on x86 CPUs, we need to clear
+ * the FPU (this is needed after MMX instructions have been used or
+ * if an interrupt occurs during an FPU computation).
+ * Linux and OS X 10.6 do this as part of their signals implementation,
+ * but Solaris doesn't.  Since this code is called only when handling a
+ * signal (which should be very rare), it's better to play safe and
+ * always execute this instead of special-casing based on the operating
+ * system.
+ * See http://trac.sagemath.org/sage_trac/ticket/12873
+ */
+static inline void reset_CPU(void)
+{
+    _fpreset();
+}
+
+/* Handler for SIGINT, SIGALRM
+ *
+ * On Windows, the way we handle an interrupt immediately is by
+ * mapping it to SIGFPE.  Specifically, we save the signal number in
+ * cysigs.sig_mapped_to_FPE and raise SIGFPE.  The handler for SIGFPE
+ * will then call longjmp.  The reason that it is done this way is
+ * that for most signals in Windows the handler is run in a separate
+ * thread, with its own stack.  This makes it impossible to call
+ * longjmp from a signal handler.  However, longjmp within a signal
+ * handler is supported for exactly one signal, namely SIGFPE.
+ */
+static void cysigs_interrupt_handler(int sig)
+{
+    DEBUG( "call to cysigs_interrupt_handler with signal %d\n", sig )
+    /* Since we are using signal, we must reset the handler. */
+    if (signal(sig, cysigs_interrupt_handler) == SIG_ERR)
+    {
+        perror("signal");
+        exit(1);
+    }
+    if (cysigs.sig_on_count > 0)
+    {
+        DEBUG( "Inside a sig_on, sig_off block -\n" )
+        if (!cysigs.block_sigint && !PARI_SIGINT_block)
+        {
+            cysigs.sig_mapped_to_FPE = sig;
+            win32ctrlc += 1;
+            DEBUG( "Incremented win32ctrlc to %d\n", win32ctrlc )
+            return;
+        }
+    }
+    else
+    {
+        /* Set the Python interrupt indicator, which will cause the
+         * Python-level interrupt handler in cysignals/signals.pyx to
+         * be called. */
+        DEBUG( "Outside a sig_on, sig_off block -Raising Python exception.\n" )
+        PyErr_SetInterrupt();
+    }
+    /* If we are here, we could not handle the interrupt immediately, so
+     * we store the signal number for later use.  But make sure we
+     * don't overwrite a SIGTERM which we already received. */
+    if (cysigs.interrupt_received != SIGTERM)
+    {
+        cysigs.interrupt_received = sig;
+        PARI_SIGINT_pending = sig;
+    }
+    DEBUG( "Handler returning.\n" )
+}
+
+/* Handler for SIGQUIT, SIGILL, SIGABRT, SIGFPE, SIGBUS, SIGSEGV
+ *
+ * Inside sig_on() (i.e. when cysigs.sig_on_count is positive), this
+ * raises an exception and jumps back to sig_on().
+ * Outside of sig_on(), we terminate Python.
+ *
+ */
+
+static void cysigs_signal_handler(int sig)
+{
+    DEBUG( "call to cysigs_signal_handler for %d with sig_count %d.\n",
+           sig, cysigs.sig_on_count )
+    /*
+     * Since we are using ANSI signals, we must reset the handler.
+     */
+    if (signal(sig, cysigs_signal_handler) == SIG_ERR)
+    {
+        perror("signal");
+        exit(1);
+    }
+    if (cysigs.sig_on_count > 0)
+    {
+        DEBUG( "Inside sig_on - sig_off block\n" )
+        /*
+         * We are inside sig_on(), so we can handle the signal!
+         *
+         * Any signal which needs to be handled immediately, is
+         * mapped to FPE by setting sig_mapped_to_FPE and raising
+         * SIGFPE.  SIGFPE is the only signal which supports calling
+         * longjmp within the handler.
+         */
+        if (sig == SIGFPE){
+            if (cysigs.sig_mapped_to_FPE)
+            {
+                DEBUG( "Mapped from %d\n", cysigs.sig_mapped_to_FPE )
+                int mapped_sig = cysigs.sig_mapped_to_FPE;
+                cysigs.sig_mapped_to_FPE = 0;
+                do_raise_exception(mapped_sig);
+                reset_CPU();
+                DEBUG( "Calling longjmp\n" )
+                longjmp(cysigs.env, mapped_sig);
+            }
+            else /* This really is a floating point exception */
+            {
+                reset_CPU();
+                do_raise_exception(SIGFPE);
+                longjmp(cysigs.env, SIGFPE);
+            }
+        }
+        else
+        {
+            /* We are not handling SIGFPE, so we Can't longjmp here.  If
+             * the signal is SIGINT then pari will call pari_error later.
+             * Otherwise we need to deal with it somehow.
+            */
+            DEBUG( "inside sig_on/sig_off\n" )
+                    cysigs.sig_mapped_to_FPE = sig;
+            if (sig != SIGINT) {
+                DEBUG( "raising SIGFPE\n" )
+                raise(SIGFPE);
+            }
+        }
+    }
+    else
+    {
+        /* We are outside sig_on() and have no choice but to terminate Python */
+        DEBUG( "outside sig_on/sig_off: killing Python.\n" )
+        /* Reset all signals to their default behaviour and unblock
+         * them in case something goes wrong.
+         */
+        signal(SIGINT, SIG_DFL);
+        signal(SIGILL, SIG_DFL);
+        signal(SIGABRT, SIG_DFL);
+        signal(SIGFPE, SIG_DFL);
+        signal(SIGSEGV, SIG_DFL);
+        signal(SIGTERM, SIG_DFL);
+
+        /* Quit Python with an appropriate message. */
+        switch(sig)
+        {
+            case SIGILL:
+                sigdie(sig, "Unhandled SIGILL: An illegal instruction occurred.");
+                break;  /* This will not be reached */
+            case SIGABRT:
+                sigdie(sig, "Unhandled SIGABRT: An abort() occurred.");
+                break;  /* This will not be reached */
+            case SIGFPE:
+                sigdie(sig, "Unhandled SIGFPE: An unhandled floating point exception occurred.");
+                break;  /* This will not be reached */
+            case SIGSEGV:
+                sigdie(sig, "Unhandled SIGSEGV: A segmentation fault occurred.");
+                break;  /* This will not be reached */
+        };
+        sigdie(sig, "Unknown signal received.\n");
+    }
+}
+
+__PYX_EXTERN_C DL_EXPORT(int) sig_raise_exception(int, char const *);
+//extern int sig_raise_exception(int sig, const char* msg);
+
+/* This calls sig_raise_exception() to actually raise the exception. */
+static void do_raise_exception(int sig)
+{
+    /* Call Cython function to raise exception */
+    sig_raise_exception(sig, cysigs.s);
+}
+
+
+/* This will be called during _sig_on_postjmp() when an interrupt was
+ * received *before* the call to sig_on(). */
+static void _sig_on_interrupt_received(void)
+{
+    DEBUG("Call to _sig_on_interrupt_received.\n")
+    do_raise_exception(cysigs.interrupt_received);
+    cysigs.sig_on_count = 0;
+    cysigs.interrupt_received = 0;
+    PARI_SIGINT_pending = 0;
+}
+
+/* Cleanup after siglongjmp() (set sig_on_count to zero) */
+static void _sig_on_recover(void)
+{
+    DEBUG("Call to _sig_on_recover.\n")
+            cysigs.block_sigint = 0;
+    PARI_SIGINT_block = 0;
+    cysigs.sig_on_count = 0;
+    cysigs.interrupt_received = 0;
+    PARI_SIGINT_pending = 0;
+    win32ctrlc = 0;
+}
+
+/* Give a warning that sig_off() was called without sig_on() */
+static void _sig_off_warning(const char* file, int line)
+{
+    char buf[320];
+    PyGILState_STATE gilstate_save;
+    snprintf(buf, sizeof(buf), "sig_off() without sig_on() at %s:%i", file, line);
+
+    /* Raise a warning with the Python GIL acquired */
+    gilstate_save = PyGILState_Ensure();
+    PyErr_WarnEx(PyExc_RuntimeWarning, buf, 2);
+    PyGILState_Release(gilstate_save);
+
+    print_backtrace();
+}
+
+LONG WINAPI
+SIGSEGV_generator(struct _EXCEPTION_POINTERS *ExceptionInfo)
+{
+    if (ExceptionInfo->ExceptionRecord->ExceptionCode ==
+        EXCEPTION_ACCESS_VIOLATION) {
+        raise(SIGSEGV);
+        return EXCEPTION_CONTINUE_EXECUTION;
+    } else{
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
+}
+
+static void setup_cysignals_handlers(void)
+{
+    static PVOID exc_handler = NULL;
+    /* Reset the cysigs structure */
+    DEBUG("Installing signal handlers.\n")
+    memset(&cysigs, 0, sizeof(cysigs));
+    if (signal(SIGINT, &cysigs_interrupt_handler) == SIG_ERR ||
+        signal(SIGFPE, cysigs_signal_handler) == SIG_ERR     ||
+        signal(SIGILL, cysigs_signal_handler) == SIG_ERR     ||
+        signal(SIGABRT, cysigs_signal_handler) == SIG_ERR    ||
+        signal(SIGSEGV, cysigs_signal_handler) == SIG_ERR    )
+    {
+        perror("signal");
+        exit(1);
+    }
+    exc_handler = AddVectoredExceptionHandler(1, SIGSEGV_generator);
+}
+
+static void print_sep(void)
+{
+    fprintf(stderr,
+            "------------------------------------------------------------------------\n");
+    fflush(stderr);
+}
+
+static void print_backtrace(void)
+{
+}
+
+/* Print a message s and kill ourselves with signal sig */
+static void sigdie(int sig, const char* s)
+{
+    print_sep();
+
+    if (s) {
+        fprintf(stderr,
+                "%s\nsig_on count = %d\n"
+                        "This probably occurred because a *compiled* module has a bug\n"
+                        "in it and is not properly wrapped with sig_on(), sig_off().\n"
+                        "Python will now terminate.\n", s, cysigs.sig_on_count);
+        print_sep();
+    }
+
+    /* Suicide with signal ``sig`` */
+    raise(sig);
+    /* We should be dead! */
+    exit(128 + sig);
+}
+
+/* Finally include the macros and inline functions for use in
+ * signals.pyx. These require some of the above functions, therefore
+ * this include must come at the end of this file. */
+#include "macros.h"
+
+#endif
