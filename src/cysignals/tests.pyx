@@ -51,8 +51,11 @@ from .memory cimport *
 
 cdef extern from 'tests_helper.c':
     void ms_sleep(long ms) nogil
-    void signal_after_delay(int signum, long ms) nogil
-    void signals_after_delay(int signum, long ms, long interval, int n) nogil
+
+IF UNAME_SYSNAME != 'Windows':
+    cdef extern from 'tests_helper.c':
+        void signal_after_delay(int signum, long ms) nogil
+        void signals_after_delay(int signum, long ms, long interval, int n) nogil
 
 cdef extern from *:
     ctypedef int volatile_int "volatile int"
@@ -136,24 +139,24 @@ class return_exception(object):
         except BaseException as e:
             return e
 
+IF UNAME_SYSNAME != 'Windows':
+    def interrupt_after_delay(ms_delay=500):
+        """
+        Send an interrupt signal (``SIGINT``) to the process after a delay of
+        ``ms_delay`` milliseconds.
 
-def interrupt_after_delay(ms_delay=500):
-    """
-    Send an interrupt signal (``SIGINT``) to the process after a delay of
-    ``ms_delay`` milliseconds.
+        INPUT:
 
-    INPUT:
+            - ``ms_delay`` -- (default: 500) a nonnegative integer indicating how
+              many milliseconds to wait before raising the interrupt signal.
 
-        - ``ms_delay`` -- (default: 500) a nonnegative integer indicating how
-          many milliseconds to wait before raising the interrupt signal.
+        EXAMPLES:
 
-    EXAMPLES:
-
-    This function is meant to test interrupt functionality.  We demonstrate here
-    how to test that an infinite loop can be interrupted::
+        This function is meant to test interrupt functionality.  We demonstrate here
+        how to test that an infinite loop can be interrupted::
 
         >>> import cysignals.tests
-        >>> try:
+        >>> try:# doctest: +SKIP_WINDOWS
         ...     cysignals.tests.interrupt_after_delay()
         ...     while True:
         ...         pass
@@ -161,24 +164,24 @@ def interrupt_after_delay(ms_delay=500):
         ...     print("Caught KeyboardInterrupt")
         Caught KeyboardInterrupt
 
-    """
-    signal_after_delay(SIGINT, ms_delay)
+        """
+        signal_after_delay(SIGINT, ms_delay)
 
 
-def on_stack():
-    """
-    Are we currently on the alternate signal stack (see sigaltstack(2))?
+    def on_stack():
+        """
+        Are we currently on the alternate signal stack (see sigaltstack(2))?
 
-    EXAMPLES::
+        EXAMPLES::
 
-        >>> from cysignals.tests import on_stack
-        >>> on_stack()
-        False
+            >>> from cysignals.tests import on_stack     # doctest: +SKIP_WINDOWS
+            >>> on_stack()                               # doctest: +SKIP_WINDOWS
+            False
 
-    """
-    cdef stack_t oss
-    sigaltstack(NULL, &oss)
-    return (oss.ss_flags & SS_ONSTACK) != 0
+        """
+        cdef stack_t oss
+        sigaltstack(NULL, &oss)
+        return (oss.ss_flags & SS_ONSTACK) != 0
 
 
 def _sig_on():
@@ -195,7 +198,7 @@ def subpython_err(command, **kwds):
     which was generated.
     """
     argv = [sys.executable, '-c', command]
-    (out, err) = Popen(argv, stdout=PIPE, stderr=PIPE, **kwds).communicate()
+    (out, err) = Popen(argv, stdout=PIPE, stderr=PIPE, universal_newlines=True, **kwds).communicate()
     if not isinstance(err, str):
         err = err.decode()
     sys.stdout.write(err)
@@ -218,120 +221,124 @@ def test_sig_off():
         sig_on()
         sig_off()
 
-@return_exception
-def test_sig_on(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+IF UNAME_SYSNAME != 'Windows':
+    @return_exception
+    def test_sig_on(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_sig_on()
-        KeyboardInterrupt()
+            >>> from cysignals.tests import *
+            >>> test_sig_on()        # doctest: +SKIP_WINDOWS
+            KeyboardInterrupt()
 
-    """
-    with nogil:
-        signal_after_delay(SIGINT, delay)
-        sig_on()
-        infinite_loop()
+        """
+        with nogil:
+            signal_after_delay(SIGINT, delay)
+            sig_on()
+            infinite_loop()
 
-def test_sig_str(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+    def test_sig_str(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_sig_str()
-        Traceback (most recent call last):
-        ...
-        RuntimeError: Everything ok!
+            >>> from cysignals.tests import *
+            >>> test_sig_str()       # doctest: +SKIP_WINDOWS
+            Traceback (most recent call last):
+            ...
+            RuntimeError: Everything ok!
 
-    """
-    with nogil:
-        sig_str("Everything ok!")
-        signal_after_delay(SIGABRT, delay)
-        infinite_loop()
+        """
+        with nogil:
+            sig_str("Everything ok!")
+            signal_after_delay(SIGABRT, delay)
+            infinite_loop()
 
 cdef c_test_sig_on_cython():
     sig_on()
     infinite_loop()
 
-@return_exception
-def test_sig_on_cython(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+IF UNAME_SYSNAME != 'Windows':
+    @return_exception
+    def test_sig_on_cython(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_sig_on_cython()
-        KeyboardInterrupt()
+            >>> from cysignals.tests import *
+            >>> test_sig_on_cython()     # doctest: +SKIP_WINDOWS
+            KeyboardInterrupt()
 
-    """
-    signal_after_delay(SIGINT, delay)
-    c_test_sig_on_cython()
+        """
+        signal_after_delay(SIGINT, delay)
+        c_test_sig_on_cython()
 
 cdef int c_test_sig_on_cython_except() nogil except 42:
     sig_on()
     infinite_loop()
 
-@return_exception
-def test_sig_on_cython_except(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+IF UNAME_SYSNAME != 'Windows':
+    @return_exception
+    def test_sig_on_cython_except(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_sig_on_cython_except()
-        KeyboardInterrupt()
+            >>> from cysignals.tests import *
+            >>> test_sig_on_cython_except()  # doctest: +SKIP_WINDOWS
+            KeyboardInterrupt()
 
-    """
-    with nogil:
-        signal_after_delay(SIGINT, delay)
-        c_test_sig_on_cython_except()
+        """
+        with nogil:
+            signal_after_delay(SIGINT, delay)
+            c_test_sig_on_cython_except()
 
 cdef void c_test_sig_on_cython_except_all() nogil except *:
     sig_on()
     infinite_loop()
 
-@return_exception
-def test_sig_on_cython_except_all(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+IF UNAME_SYSNAME != 'Windows':
+    @return_exception
+    def test_sig_on_cython_except_all(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_sig_on_cython_except_all()
-        KeyboardInterrupt()
+            >>> from cysignals.tests import *
+            >>> test_sig_on_cython_except_all()  # doctest: +SKIP_WINDOWS
+            KeyboardInterrupt()
 
-    """
-    with nogil:
-        signal_after_delay(SIGINT, delay)
-        c_test_sig_on_cython_except_all()
-
-@return_exception
-def test_sig_check(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
-
-        >>> from cysignals.tests import *
-        >>> test_sig_check()
-        KeyboardInterrupt()
-
-    """
-    signal_after_delay(SIGINT, delay)
-    while True:
+        """
         with nogil:
-            sig_check()
+            signal_after_delay(SIGINT, delay)
+            c_test_sig_on_cython_except_all()
 
-@return_exception
-def test_sig_check_inside_sig_on(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+    @return_exception
+    def test_sig_check(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_sig_check_inside_sig_on()
-        KeyboardInterrupt()
+            >>> from cysignals.tests import *
+            >>> test_sig_check()                # doctest: +SKIP_WINDOWS
+            KeyboardInterrupt()
 
-    """
-    with nogil:
+        """
         signal_after_delay(SIGINT, delay)
-        sig_on()
         while True:
-            sig_check()
+            with nogil:
+                sig_check()
+
+    @return_exception
+    def test_sig_check_inside_sig_on(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
+
+            >>> from cysignals.tests import *
+            >>> test_sig_check_inside_sig_on()   # doctest: +SKIP_WINDOWS
+            KeyboardInterrupt()
+
+        """
+        with nogil:
+            signal_after_delay(SIGINT, delay)
+            sig_on()
+            while True:
+                sig_check()
 
 
 ########################################################################
@@ -356,25 +363,26 @@ def test_sig_retry():
         sig_off()
     return v
 
-@return_exception
-def test_sig_retry_and_signal(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+IF UNAME_SYSNAME != 'Windows':
+    @return_exception
+    def test_sig_retry_and_signal(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_sig_retry_and_signal()
-        KeyboardInterrupt()
+            >>> from cysignals.tests import *
+            >>> test_sig_retry_and_signal()      # doctest: +SKIP_WINDOWS
+            KeyboardInterrupt()
 
-    """
-    cdef volatile_int v = 0
+        """
+        cdef volatile_int v = 0
 
-    with nogil:
-        sig_on()
-        if v < 10:
-            v = v + 1
-            sig_retry()
-        signal_after_delay(SIGINT, delay)
-        infinite_loop()
+        with nogil:
+            sig_on()
+            if v < 10:
+                v = v + 1
+                sig_retry()
+            signal_after_delay(SIGINT, delay)
+            infinite_loop()
 
 def test_sig_error():
     """
@@ -395,176 +403,177 @@ def test_sig_error():
 ########################################################################
 # Test no_except macros                                                #
 ########################################################################
-def test_sig_on_no_except(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+IF UNAME_SYSNAME != 'Windows':
+    def test_sig_on_no_except(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_sig_on_no_except()
-        42
+            >>> from cysignals.tests import *
+            >>> test_sig_on_no_except()      # doctest: +SKIP_WINDOWS
+            42
 
-    """
-    if not sig_on_no_except():
-        # We should never get here, because this sig_on_no_except()
-        # will not catch a signals.
-        print("Unexpected zero returned from sig_on_no_except()")
-    sig_off()
+        """
+        if not sig_on_no_except():
+            # We should never get here, because this sig_on_no_except()
+            # will not catch a signals.
+            print("Unexpected zero returned from sig_on_no_except()")
+        sig_off()
 
-    signal_after_delay(SIGINT, delay)
-    if not sig_on_no_except():
-        # We get here when we caught a signal.  An exception
-        # has been raised, but Cython doesn't realize it yet.
-        try:
-            # Make Cython realize that there is an exception.
-            # To Cython, it will look like the exception was raised on
-            # the following line, so the try/except should work.
-            cython_check_exception()
-        except KeyboardInterrupt:
-            return 42
-        return 0 # fail
-    infinite_loop()
-
-def test_sig_str_no_except(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
-
-        >>> from cysignals.tests import *
-        >>> test_sig_str_no_except()
-        Traceback (most recent call last):
-        ...
-        RuntimeError: Everything ok!
-
-    """
-    if not sig_on_no_except():
-        # We should never get here, because this sig_on_no_except()
-        # will not catch a signal.
-        print("Unexpected zero returned from sig_on_no_except()")
-    sig_off()
-
-    if not sig_str_no_except("Everything ok!"):
-        cython_check_exception()
-        return 0 # fail
-    signal_after_delay(SIGABRT, delay)
-    infinite_loop()
-
-@return_exception
-def test_sig_check_no_except(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
-
-        >>> from cysignals.tests import *
-        >>> test_sig_check_no_except()
-        KeyboardInterrupt()
-
-    """
-    with nogil:
         signal_after_delay(SIGINT, delay)
-        while True:
-            if not sig_check_no_except():
+        if not sig_on_no_except():
+            # We get here when we caught a signal.  An exception
+            # has been raised, but Cython doesn't realize it yet.
+            try:
+                # Make Cython realize that there is an exception.
+                # To Cython, it will look like the exception was raised on
+                # the following line, so the try/except should work.
                 cython_check_exception()
-                break # fail
+            except KeyboardInterrupt:
+                return 42
+            return 0 # fail
+        infinite_loop()
+
+    def test_sig_str_no_except(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
+
+            >>> from cysignals.tests import *
+            >>> test_sig_str_no_except()     # doctest: +SKIP_WINDOWS
+            Traceback (most recent call last):
+            ...
+            RuntimeError: Everything ok!
+
+        """
+        if not sig_on_no_except():
+            # We should never get here, because this sig_on_no_except()
+            # will not catch a signal.
+            print("Unexpected zero returned from sig_on_no_except()")
+        sig_off()
+
+        if not sig_str_no_except("Everything ok!"):
+            cython_check_exception()
+            return 0 # fail
+        signal_after_delay(SIGABRT, delay)
+        infinite_loop()
+
+    @return_exception
+    def test_sig_check_no_except(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
+
+            >>> from cysignals.tests import *
+            >>> test_sig_check_no_except()      # doctest: +SKIP_WINDOWS
+            KeyboardInterrupt()
+
+        """
+        with nogil:
+            signal_after_delay(SIGINT, delay)
+            while True:
+                if not sig_check_no_except():
+                    cython_check_exception()
+                    break # fail
 
 
 ########################################################################
 # Test different signals                                               #
 ########################################################################
-def test_signal_segv(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+    def test_signal_segv(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_signal_segv()
-        Traceback (most recent call last):
-        ...
-        SignalError: Segmentation fault
+            >>> from cysignals.tests import *
+            >>> test_signal_segv()       # doctest: +SKIP_WINDOWS
+            Traceback (most recent call last):
+            ...
+            SignalError: Segmentation fault
 
-    """
-    with nogil:
-        sig_on()
-        signal_after_delay(SIGSEGV, delay)
-        infinite_loop()
+        """
+        with nogil:
+            sig_on()
+            signal_after_delay(SIGSEGV, delay)
+            infinite_loop()
 
-def test_signal_fpe(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+    def test_signal_fpe(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_signal_fpe()
-        Traceback (most recent call last):
-        ...
-        FloatingPointError: Floating point exception
+            >>> from cysignals.tests import *
+            >>> test_signal_fpe()        # doctest: +SKIP_WINDOWS
+            Traceback (most recent call last):
+            ...
+            FloatingPointError: Floating point exception
 
-    """
-    with nogil:
-        sig_on()
-        signal_after_delay(SIGFPE, delay)
-        infinite_loop()
+        """
+        with nogil:
+            sig_on()
+            signal_after_delay(SIGFPE, delay)
+            infinite_loop()
 
-def test_signal_ill(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+    def test_signal_ill(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_signal_ill()
-        Traceback (most recent call last):
-        ...
-        SignalError: Illegal instruction
+            >>> from cysignals.tests import *
+            >>> test_signal_ill()        # doctest: +SKIP_WINDOWS
+            Traceback (most recent call last):
+            ...
+            SignalError: Illegal instruction
 
-    """
-    with nogil:
-        sig_on()
-        signal_after_delay(SIGILL, delay)
-        infinite_loop()
+        """
+        with nogil:
+            sig_on()
+            signal_after_delay(SIGILL, delay)
+            infinite_loop()
 
-def test_signal_abrt(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+    def test_signal_abrt(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_signal_abrt()
-        Traceback (most recent call last):
-        ...
-        RuntimeError: Aborted
+            >>> from cysignals.tests import *
+            >>> test_signal_abrt()       # doctest: +SKIP_WINDOWS
+            Traceback (most recent call last):
+            ...
+            RuntimeError: Aborted
 
-    """
-    with nogil:
-        sig_on()
-        signal_after_delay(SIGABRT, delay)
-        infinite_loop()
+        """
+        with nogil:
+            sig_on()
+            signal_after_delay(SIGABRT, delay)
+            infinite_loop()
 
-def test_signal_bus(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+    def test_signal_bus(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_signal_bus()
-        Traceback (most recent call last):
-        ...
-        SignalError: Bus error
+            >>> from cysignals.tests import *
+            >>> test_signal_bus()        # doctest: +SKIP_WINDOWS
+            Traceback (most recent call last):
+            ...
+            SignalError: Bus error
 
-    """
-    with nogil:
-        sig_on()
-        signal_after_delay(SIGBUS, delay)
-        infinite_loop()
+        """
+        with nogil:
+            sig_on()
+            signal_after_delay(SIGBUS, delay)
+            infinite_loop()
 
-def test_signal_quit(long delay=DEFAULT_DELAY):
-    """
-    TESTS:
+    def test_signal_quit(long delay=DEFAULT_DELAY):
+        """
+        TESTS:
 
-    We run Python in a subprocess and make it raise a SIGQUIT under
-    ``sig_on()``.  This should cause Python to exit::
+        We run Python in a subprocess and make it raise a SIGQUIT under
+        ``sig_on()``.  This should cause Python to exit::
 
         >>> from cysignals.tests import subpython_err
-        >>> subpython_err('from cysignals.tests import *; test_signal_quit()')
+        >>> subpython_err('from cysignals.tests import *; test_signal_quit()') # doctest: +SKIP_WINDOWS
         ---------------------------------------------------------------------...
 
-    """
-    # The sig_on() shouldn't make a difference for SIGQUIT
-    with nogil:
-        sig_on()
-        signal_after_delay(SIGQUIT, delay)
-        infinite_loop()
+        """
+        # The sig_on() shouldn't make a difference for SIGQUIT
+        with nogil:
+            sig_on()
+            signal_after_delay(SIGQUIT, delay)
+            infinite_loop()
 
 
 ########################################################################
@@ -582,7 +591,7 @@ def test_dereference_null_pointer():
         Traceback (most recent call last):
         ...
         SignalError: ...
-        >>> on_stack()
+        >>> on_stack()  # doctest: +SKIP_WINDOWS
         False
 
     """
@@ -641,7 +650,16 @@ def unguarded_abort():
     We run Python in a subprocess and make it call abort()::
 
         >>> from cysignals.tests import subpython_err
-        >>> subpython_err('from cysignals.tests import *; unguarded_abort()')
+        >>> subpython_err('from cysignals.tests import *; unguarded_abort()') # doctest: +SKIP_WINDOWS
+        ---------------------------------------------------------------------...
+        Unhandled SIGABRT: An abort() occurred.
+        This probably occurred because a *compiled* module has a bug
+        in it and is not properly wrapped with sig_on(), sig_off().
+        Python will now terminate.
+        ------------------------------------------------------------------------
+        >>> subpython_err('from cysignals.tests import *; unguarded_abort()') # doctest: +SKIP
+        <BLANKLINE>
+        ...
         ---------------------------------------------------------------------...
         Unhandled SIGABRT: An abort() occurred.
         This probably occurred because a *compiled* module has a bug
@@ -659,7 +677,7 @@ def test_stack_overflow():
     TESTS::
 
         >>> from cysignals.tests import *
-        >>> test_stack_overflow()
+        >>> test_stack_overflow() # doctest: +SKIP_WINDOWS
         Traceback (most recent call last):
         ...
         SignalError: Segmentation fault
@@ -676,7 +694,7 @@ def unguarded_stack_overflow():
     We run Python in a subprocess and overflow the stack::
 
         >>> from cysignals.tests import subpython_err
-        >>> subpython_err('from cysignals.tests import *; unguarded_stack_overflow()')
+        >>> subpython_err('from cysignals.tests import *; unguarded_stack_overflow()') # doctest: +SKIP_WINDOWS
         ---------------------------------------------------------------------...
         Unhandled SIGSEGV: A segmentation fault occurred.
         This probably occurred because a *compiled* module has a bug
@@ -688,15 +706,15 @@ def unguarded_stack_overflow():
     with nogil:
         stack_overflow()
 
+IF UNAME_SYSNAME != 'Windows':
+    def test_bad_str(long delay=DEFAULT_DELAY):
+        """
+        TESTS:
 
-def test_bad_str(long delay=DEFAULT_DELAY):
-    """
-    TESTS:
-
-    We run Python in a subprocess and induce an error during the signal handler::
+        We run Python in a subprocess and induce an error during the signal handler::
 
         >>> from cysignals.tests import subpython_err
-        >>> subpython_err('from cysignals.tests import *; test_bad_str()')
+        >>> subpython_err('from cysignals.tests import *; test_bad_str()') # doctest: +SKIP_WINDOWS
         ---------------------------------------------------------------------...
         An error occurred during signal handling.
         This probably occurred because a *compiled* module has a bug
@@ -704,107 +722,105 @@ def test_bad_str(long delay=DEFAULT_DELAY):
         Python will now terminate.
         ------------------------------------------------------------------------
 
-    """
-    cdef char* s = <char*>(16)
-    with nogil:
-        sig_str(s)
-        signal_after_delay(SIGILL, delay)
-        infinite_loop()
+        """
+        cdef char* s = <char*>(16)
+        with nogil:
+            sig_str(s)
+            signal_after_delay(SIGILL, delay)
+            infinite_loop()
 
 
 ########################################################################
 # Test various usage scenarios for sig_on()/sig_off()                  #
 ########################################################################
-@return_exception
-def test_sig_on_cython_after_delay(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+    @return_exception
+    def test_sig_on_cython_after_delay(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_sig_on_cython_after_delay()
-        KeyboardInterrupt()
+            >>> from cysignals.tests import *
+            >>> test_sig_on_cython_after_delay()    # doctest: +SKIP_WINDOWS
+            KeyboardInterrupt()
 
-    """
-    with nogil:
-        signal_after_delay(SIGINT, delay)
-        ms_sleep(delay * 2)  # We get signaled during this sleep
-        sig_on()             # The signal should be detected here
-        abort()              # This should not be reached
-
-def test_sig_on_inside_try(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
-
-        >>> from cysignals.tests import *
-        >>> test_sig_on_inside_try()
-
-    """
-    try:
+        """
         with nogil:
-            sig_on()
-            signal_after_delay(SIGABRT, delay)
-            infinite_loop()
-    except RuntimeError:
-        pass
+            signal_after_delay(SIGINT, delay)
+            ms_sleep(delay * 2)  # We get signaled during this sleep
+            sig_on()             # The signal should be detected here
+            abort()              # This should not be reached
 
+    def test_sig_on_inside_try(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-def test_interrupt_bomb(long n=100, long p=10):
-    """
-    Have `p` processes each sending `n` interrupts in very quick
-    succession and see what happens :-)
+            >>> from cysignals.tests import *
+            >>> test_sig_on_inside_try()  # doctest: +SKIP_WINDOWS
 
-    TESTS::
-
-        >>> from cysignals.tests import *
-        >>> test_interrupt_bomb()  # doctest: +SKIP_CYGWIN
-        Received ... interrupts
-
-    """
-    cdef long i
-
-    # Spawn p processes, each sending n signals with an interval of 1 millisecond
-    cdef long base_delay = DEFAULT_DELAY + 5*p
-    for i in range(p):
-        signals_after_delay(SIGINT, base_delay, 1, n)
-
-    i = 0
-    while True:
+        """
         try:
             with nogil:
                 sig_on()
-                ms_sleep(1000)
-                sig_off()
-            # If 1 second passed since the last interrupt, we assume that
-            # no more interrupts are coming.
-            if i > 0:
-                break
-        except KeyboardInterrupt:
-            i += 1
-    print(f"Received {i}/{n*p} interrupts")
+                signal_after_delay(SIGABRT, delay)
+                infinite_loop()
+        except RuntimeError:
+            pass
 
+    def test_interrupt_bomb(long n = 100, long p = 10):
+        """
+        Have `p` processes each sending `n` interrupts in very quick
+        succession and see what happens :-)
 
-# Special thanks to Robert Bradshaw for suggesting the try/finally
-# construction. -- Jeroen Demeyer
-def test_try_finally_signal(long delay=DEFAULT_DELAY):
-    """
-    Test a try/finally construct for sig_on() and sig_off(), raising
-    a signal inside the ``try``.
+        TESTS::
 
-    TESTS::
+            >>> from cysignals.tests import *
+            >>> test_interrupt_bomb()    # doctest: +SKIP_WINDOWS +SKIP_CYGWIN
+            Received ... interrupts
 
-        >>> from cysignals.tests import *
-        >>> test_try_finally_signal()
-        Traceback (most recent call last):
-        ...
-        RuntimeError: Aborted
+        """
+        cdef long i
 
-    """
-    sig_on()
-    try:
-        signal_after_delay(SIGABRT, delay)
-        infinite_loop()
-    finally:
-        sig_off()
+        # Spawn p processes, each sending n signals with an interval of 1 millisecond
+        cdef long base_delay = DEFAULT_DELAY + 5*p
+        for i in range(p):
+            signals_after_delay(SIGINT, base_delay, 1, n)
+
+        i = 0
+        while True:
+            try:
+                with nogil:
+                    sig_on()
+                    ms_sleep(1000)
+                    sig_off()
+                # If 1 second passed since the last interrupt, we assume that
+                # no more interrupts are coming.
+                if i > 0:
+                    break
+            except KeyboardInterrupt:
+                i += 1
+        print(f"Received {i}/{n*p} interrupts")
+
+    # Special thanks to Robert Bradshaw for suggesting the try/finally
+    # construction. -- Jeroen Demeyer
+    def test_try_finally_signal(long delay=DEFAULT_DELAY):
+        """
+        Test a try/finally construct for sig_on() and sig_off(), raising
+        a signal inside the ``try``.
+
+        TESTS::
+
+            >>> from cysignals.tests import *
+            >>> test_try_finally_signal()    # doctest: +SKIP_WINDOWS
+            Traceback (most recent call last):
+            ...
+            RuntimeError: Aborted
+
+        """
+        sig_on()
+        try:
+            signal_after_delay(SIGABRT, delay)
+            infinite_loop()
+        finally:
+            sig_off()
 
 def test_try_finally_raise():
     """
@@ -923,111 +939,112 @@ cdef class DeallocDebug:
 ########################################################################
 # Test sig_block()/sig_unblock()                                       #
 ########################################################################
-def test_sig_block(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+IF UNAME_SYSNAME != 'Windows':
+    def test_sig_block(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_sig_block()
-        42
+            >>> from cysignals.tests import *
+            >>> test_sig_block()     # doctest: +SKIP_WINDOWS
+            42
 
-    """
-    cdef volatile_int v = 0
+        """
+        cdef volatile_int v = 0
 
-    try:
+        try:
+            with nogil:
+                sig_on()
+                sig_block()
+                signal_after_delay(SIGINT, delay)
+                ms_sleep(delay * 2)  # We get signaled during this sleep
+                v = 42
+                sig_unblock()        # Here, the interrupt will be handled
+                sig_off()
+        except KeyboardInterrupt:
+            return v
+
+        # Never reached
+        return 1
+
+    def test_sig_block_nested(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
+
+            >>> from cysignals.tests import *
+            >>> test_sig_block()     # doctest: +SKIP_WINDOWS
+            42
+
+        """
+        cdef volatile_int v = 0
+
+        try:
+            with nogil:
+                sig_on()
+                sig_block()
+                sig_block()
+                sig_block()
+                signal_after_delay(SIGINT, delay)
+                sig_unblock()
+                ms_sleep(delay * 2)  # We get signaled during this sleep
+                sig_check()
+                sig_unblock()
+                sig_on()
+                sig_off()
+                v = 42
+                sig_unblock()        # Here, the interrupt will be handled
+                sig_off()
+        except KeyboardInterrupt:
+            return v
+
+        # Never reached
+        return 1
+
+    def test_sig_block_outside_sig_on(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
+
+            >>> from cysignals.tests import *
+            >>> test_sig_block_outside_sig_on()      # doctest: +SKIP_WINDOWS
+            'Success'
+
+        """
         with nogil:
-            sig_on()
-            sig_block()
             signal_after_delay(SIGINT, delay)
+
+            # sig_block()/sig_unblock() shouldn't do anything
+            # since we're outside of sig_on()
+            sig_block()
+            sig_block()
             ms_sleep(delay * 2)  # We get signaled during this sleep
-            v = 42
-            sig_unblock()        # Here, the interrupt will be handled
-            sig_off()
-    except KeyboardInterrupt:
-        return v
-
-    # Never reached
-    return 1
-
-def test_sig_block_nested(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
-
-        >>> from cysignals.tests import *
-        >>> test_sig_block()
-        42
-
-    """
-    cdef volatile_int v = 0
-
-    try:
-        with nogil:
-            sig_on()
-            sig_block()
-            sig_block()
-            sig_block()
-            signal_after_delay(SIGINT, delay)
             sig_unblock()
-            ms_sleep(delay * 2)  # We get signaled during this sleep
-            sig_check()
             sig_unblock()
-            sig_on()
-            sig_off()
-            v = 42
-            sig_unblock()        # Here, the interrupt will be handled
-            sig_off()
-    except KeyboardInterrupt:
-        return v
 
-    # Never reached
-    return 1
+        try:
+            sig_on()  # Interrupt caught here
+        except KeyboardInterrupt:
+            return "Success"
+        abort()   # This should not be reached
 
-def test_sig_block_outside_sig_on(long delay=DEFAULT_DELAY):
-    """
-    TESTS::
+    def test_signal_during_malloc(long delay=DEFAULT_DELAY):
+        """
+        Test a signal arriving during a sig_malloc() or sig_free() call.
+        Since these are wrapped with sig_block()/sig_unblock(), we should
+        safely be able to interrupt them.
 
-        >>> from cysignals.tests import *
-        >>> test_sig_block_outside_sig_on()
-        'Success'
+        TESTS::
 
-    """
-    with nogil:
-        signal_after_delay(SIGINT, delay)
+            >>> from cysignals.tests import *
+            >>> for i in range(5):  # Several times to reduce chances of false positive
+            ...     test_signal_during_malloc()  # doctest: +SKIP_WINDOWS
 
-        # sig_block()/sig_unblock() shouldn't do anything
-        # since we're outside of sig_on()
-        sig_block()
-        sig_block()
-        ms_sleep(delay * 2)  # We get signaled during this sleep
-        sig_unblock()
-        sig_unblock()
-
-    try:
-        sig_on()  # Interrupt caught here
-    except KeyboardInterrupt:
-        return "Success"
-    abort()   # This should not be reached
-
-def test_signal_during_malloc(long delay=DEFAULT_DELAY):
-    """
-    Test a signal arriving during a sig_malloc() or sig_free() call.
-    Since these are wrapped with sig_block()/sig_unblock(), we should
-    safely be able to interrupt them.
-
-    TESTS::
-
-        >>> from cysignals.tests import *
-        >>> for i in range(5):  # Several times to reduce chances of false positive
-        ...     test_signal_during_malloc()
-
-    """
-    try:
-        with nogil:
-            signal_after_delay(SIGINT, delay)
-            sig_on()
-            infinite_malloc_loop()
-    except KeyboardInterrupt:
-        pass
+        """
+        try:
+            with nogil:
+                signal_after_delay(SIGINT, delay)
+                sig_on()
+                infinite_malloc_loop()
+        except KeyboardInterrupt:
+            pass
 
 
 ########################################################################
@@ -1068,48 +1085,49 @@ def sig_check_bench():
 ########################################################################
 # Test SIGHUP                                                          #
 ########################################################################
-@return_exception
-def test_sighup(long delay=DEFAULT_DELAY):
-    """
-    Test a basic SIGHUP signal, which would normally exit the Python interpreter
-    by raising ``SystemExit``.
+IF UNAME_SYSNAME != 'Windows':
+    @return_exception
+    def test_sighup(long delay=DEFAULT_DELAY):
+        """
+        Test a basic SIGHUP signal, which would normally exit the Python interpreter
+        by raising ``SystemExit``.
 
-    TESTS::
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_sighup()
-        SystemExit()
+            >>> from cysignals.tests import *
+            >>> test_sighup()    # doctest: +SKIP_WINDOWS
+            SystemExit()
 
-    """
-    with nogil:
-        signal_after_delay(SIGHUP, delay)
-        while True:
-            sig_check()
+        """
+        with nogil:
+            signal_after_delay(SIGHUP, delay)
+            while True:
+                sig_check()
 
-@return_exception
-def test_sighup_and_sigint(long delay=DEFAULT_DELAY):
-    """
-    Test a SIGHUP and a SIGINT arriving at essentially the same time.
-    The SIGINT should be ignored and we should get a ``SystemExit``.
+    @return_exception
+    def test_sighup_and_sigint(long delay=DEFAULT_DELAY):
+        """
+        Test a SIGHUP and a SIGINT arriving at essentially the same time.
+        The SIGINT should be ignored and we should get a ``SystemExit``.
 
-    TESTS::
+        TESTS::
 
-        >>> from cysignals.tests import *
-        >>> test_sighup_and_sigint()
-        SystemExit()
+            >>> from cysignals.tests import *
+            >>> test_sighup_and_sigint()     # doctest: +SKIP_WINDOWS
+            SystemExit()
 
-    """
-    with nogil:
-        sig_on()
-        sig_block()
-        signal_after_delay(SIGHUP, delay)
-        signal_after_delay(SIGINT, delay)
-        # 3 sleeps to ensure both signals arrive
-        ms_sleep(delay)
-        ms_sleep(delay)
-        ms_sleep(delay)
-        sig_unblock()
-        sig_off()
+        """
+        with nogil:
+            sig_on()
+            sig_block()
+            signal_after_delay(SIGHUP, delay)
+            signal_after_delay(SIGINT, delay)
+            # 3 sleeps to ensure both signals arrive
+            ms_sleep(delay)
+            ms_sleep(delay)
+            ms_sleep(delay)
+            sig_unblock()
+            sig_off()
 
 def test_graceful_exit():
     r"""
@@ -1119,20 +1137,20 @@ def test_graceful_exit():
 
         >>> from sys import executable
         >>> from subprocess import *
-        >>> A = Popen([executable], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        >>> _ = A.stdin.write(b'from cysignals.tests import test_graceful_exit\n')
-        >>> _ = A.stdin.write(b'test_graceful_exit()\n')
-        >>> A.stdin.close()
+        >>> A = Popen([executable], stdin=PIPE, stdout=PIPE, stderr=PIPE) # doctest: +SKIP_WINDOWS
+        >>> _ = A.stdin.write(b'from cysignals.tests import test_graceful_exit\n') # doctest: +SKIP_WINDOWS
+        >>> _ = A.stdin.write(b'test_graceful_exit()\n') # doctest: +SKIP_WINDOWS
+        >>> A.stdin.close() # doctest: +SKIP_WINDOWS
 
     Now read from the child until we read ``"GO"``.  This ensures that
     the child process has properly started before we kill it::
 
-        >>> while b'GO' not in A.stdout.readline(): pass
+        >>> while b'GO' not in A.stdout.readline(): pass # doctest: +SKIP_WINDOWS
         >>> import os, signal, sys
-        >>> os.kill(A.pid, signal.SIGHUP)
-        >>> _ = sys.stdout.write(A.stdout.read().decode("utf-8"))
+        >>> os.kill(A.pid, signal.SIGHUP)  # doctest: +SKIP_WINDOWS
+        >>> _ = sys.stdout.write(A.stdout.read().decode("utf-8"))  # doctest: +SKIP_WINDOWS
         Goodbye!
-        >>> A.wait()
+        >>> A.wait()  # doctest: +SKIP_WINDOWS
         0
 
     """
