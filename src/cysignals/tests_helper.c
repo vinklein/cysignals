@@ -27,11 +27,16 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <signal.h>
+
+#if !defined(__MINGW32__) && !defined(_WIN32)
 #include <sys/select.h>
 #include <sys/wait.h>
-
+#else
+#include <windows.h>
+#endif
 
 /* Wait ``ms`` milliseconds */
+#if !defined(__MINGW32__) && !defined(_WIN32)
 void ms_sleep(long ms)
 {
     struct timeval t;
@@ -39,7 +44,6 @@ void ms_sleep(long ms)
     t.tv_usec = (ms % 1000) * 1000;
     select(0, NULL, NULL, NULL, &t);
 }
-
 
 /* Signal process ``killpid`` with signal ``signum`` after ``ms``
  * milliseconds.  Wait ``interval`` milliseconds, then signal again.
@@ -112,3 +116,11 @@ void signal_pid_after_delay(int signum, pid_t killpid, long ms, long interval, i
 
 /* The same as above, but sending ``n`` signals */
 #define signals_after_delay(signum, ms, interval, n) signal_pid_after_delay(signum, getpid(), ms, interval, n)
+
+#else
+void ms_sleep(long ms)
+{
+    Sleep(ms);
+}
+#endif
+

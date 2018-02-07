@@ -92,8 +92,11 @@ extern "C" {
  * if the first returns 0).
  */
 
-#define _sig_on_(message) ( unlikely(_sig_on_prejmp(message, __FILE__, __LINE__)) || _sig_on_postjmp(cysetjmp(cysigs.env)) )
-
+#if defined(__MINGW32__) || defined(_WIN32)
+  #define _sig_on_(message) ( unlikely(_sig_on_prejmp(message, __FILE__, __LINE__)) || _sig_on_postjmp(setjmp(cysigs.env)) )
+#else
+  #define _sig_on_(message) ( unlikely(_sig_on_prejmp(message, __FILE__, __LINE__)) || _sig_on_postjmp(cysetjmp(cysigs.env)) )
+#endif
 /*
  * Set message, return 0 if we need to cysetjmp(), return 1 otherwise.
  */
@@ -176,6 +179,18 @@ static inline void _sig_off_(const char* file, int line)
     else
     {
         --cysigs.sig_on_count;
+#if defined(__MINGW32__) || defined(_WIN32)
+      /* If a pari_error was generated, mingw32ctrlc should be reset to 0. */
+      /* TODO: clarify win32ctrlc role.
+         win32ctrlc is defined in paridecl.pxd file of cypari project.
+
+    	if (win32ctrlc > 0)
+	  	{
+	  		win32ctrlc = 0;
+			raise(SIGINT);
+	  	}
+	  */
+#endif
     }
 }
 
@@ -244,11 +259,15 @@ static inline void sig_unblock(void)
     }
 #endif
     --cysigs.block_sigint;
-
+#if defined(__MINGW32__) || defined(_WIN32)
+    if (unlikely(cysigs.interrupt_received) && cysigs.sig_on_count > 0)
+      raise(cysigs.interrupt_received);  /* Re-raise the signal */
+#else
     if (unlikely(cysigs.interrupt_received))
         /* Re-raise the signal if we can handle it now */
         if (cysigs.sig_on_count > 0 && cysigs.block_sigint == 0)
             raise(cysigs.interrupt_received);
+#endif
 }
 
 
@@ -262,7 +281,13 @@ static inline void sig_retry(void)
     if (unlikely(cysigs.sig_on_count <= 0))
     {
         fprintf(stderr, "sig_retry() without sig_on()\n");
+
+#if defined(__MINGW32__) || defined(_WIN32)
+		// FIX ME!!!!
+		raise(SIGFPE);
+#else
         abort();
+#endif
     }
     cylongjmp(cysigs.env, -1);
 }
@@ -276,9 +301,28 @@ static inline void sig_error(void)
     {
         fprintf(stderr, "sig_error() without sig_on()\n");
     }
+#if defined(__MINGW32__) || defined(_WIN32)
+    /*
+     * The Windows abort function will terminate the process no
+     * matter what.  If a SIGABRT handler is set it will be called,
+     * but that is only to allow cleanup before the process is terminated.
+     * So we can't call abort if we are on Windows.
+     */
+    cysigs.sig_mapped_to_FPE = 128;
+    fprintf(stderr, "sig_error raising SIGFPE\n");
+    raise(SIGFPE);
+#else
     abort();
+#endif
 }
-
+//Look if we need to keep this one
+#define test_sigsegv() {int *p = (void*)5; *p = 5;}
+//look if it is still in use.
+#if defined(__MINGW32__) || defined(_WIN32)
+  #define send_signal(sig) raise(sig)
+#else
+  #define send_signal(sig) kill(getpid(), sig)
+#endif
 
 static inline int _set_debug_level(int level)
 {
