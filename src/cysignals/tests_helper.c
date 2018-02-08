@@ -122,5 +122,16 @@ void ms_sleep(long ms)
 {
     Sleep(ms);
 }
+
+void signal_after_delay(int signum, long ms, long interval)
+{
+    /*
+        Utility ? The current process killing himself looks to be
+        a bad simulation mean.
+    */
+    ms_sleep(ms);
+    raise(signum);
+}
+
 #endif
 
