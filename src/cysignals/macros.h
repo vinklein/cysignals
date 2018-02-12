@@ -181,7 +181,7 @@ static inline void _sig_off_(const char* file, int line)
         --cysigs.sig_on_count;
 #if defined(__MINGW32__) || defined(_WIN32)
       /* If a pari_error was generated, mingw32ctrlc should be reset to 0. */
-      /* TODO: clarify win32ctrlc role.
+      /* TODO: clarify win32ctrlc role. not sure if we need this.
          win32ctrlc is defined in paridecl.pxd file of cypari project.
 
     	if (win32ctrlc > 0)
@@ -283,7 +283,10 @@ static inline void sig_retry(void)
         fprintf(stderr, "sig_retry() without sig_on()\n");
 
 #if defined(__MINGW32__) || defined(_WIN32)
-		// FIX ME!!!!
+		/*
+		    FIX ME!!!! <= Comment from cypari i don't really
+		    understand what behaviour is supposed to be fixed.
+		*/
 		raise(SIGFPE);
 #else
         abort();
@@ -315,14 +318,6 @@ static inline void sig_error(void)
     abort();
 #endif
 }
-//Look if we need to keep this one
-#define test_sigsegv() {int *p = (void*)5; *p = 5;}
-//look if it is still in use.
-#if defined(__MINGW32__) || defined(_WIN32)
-  #define send_signal(sig) raise(sig)
-#else
-  #define send_signal(sig) kill(getpid(), sig)
-#endif
 
 static inline int _set_debug_level(int level)
 {
