@@ -1,0 +1,31 @@
+version: 1.0.{build}
+
+build: off
+
+environment:
+
+  matrix:
+
+    # For Python versions available on Appveyor, see
+    # http://www.appveyor.com/docs/installed-software#python
+    # The list here is complete (excluding Python 2.6, which
+    # isn't covered by this document) at the time of writing.
+
+    - PYTHON: "C:\\Python27"
+      TOOLSPATH: "C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0"
+    - PYTHON: "C:\\Python27-x64"
+      TOOLSPATH: "C:\\mingw-w64\\x86_64-7.2.0-posix-seh-rt_v5-rev1\\bin"
+#    - PYTHON: "C:\\Python34"
+#    - PYTHON: "C:\\Python34-x64"
+#    - PYTHON: "C:\\Python35"
+#      DISTUTILS_USE_SDK: "1"
+#    - PYTHON: "C:\\Python35-x64"
+#    - PYTHON: "C:\\Python36"
+#    - PYTHON: "C:\\Python36-x64"
+
+install:
+  - set PATH=%PYTHON%;%PYTHON%\\scripts;%TOOLSPATH%;%PATH%
+  - cd C:\projects\cysignals
+  - pip install -r requirements.txt
+  - python -m cython --version
+  - make -j4 install
