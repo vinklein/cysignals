@@ -14,9 +14,13 @@ environment:
     - PYTHON: "C:\\Python27"
       TOOLSPATH: "C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
       MAKE: make
+      CNAME: mingw32
+      TYPE: 32
     - PYTHON: "C:\\Python27-x64"
-      TOOLSPATH: "C:\\mingw-w64\\x86_64-7.2.0-posix-seh-rt_v5-rev1\\bin"
+      TOOLSPATH: "C:\\mingw-w64\\x86_64-7.2.0-posix-seh-rt_v5-rev1\\mingw64\\bin"
       MAKE: mingw32-make
+      CNAME: mingw64
+      ARCH: 64
 #    - PYTHON: "C:\\Python34"
 #    - PYTHON: "C:\\Python34-x64"
 #    - PYTHON: "C:\\Python35"
@@ -25,9 +29,13 @@ environment:
 #    - PYTHON: "C:\\Python36"
 #    - PYTHON: "C:\\Python36-x64"
 
+init:
+  - IF '%ARCH%'=='64' ( copy %TOOLSPATH%\\mingw32-make.exe %TOOLSPATH%\\make.exe)
+
 install:
   - set PATH=%PYTHON%;%PYTHON%\\scripts;%TOOLSPATH%;%PATH%
   - cd C:\projects\cysignals
   - pip install -r requirements.txt
   - python -m cython --version
-  - '%MAKE% -j4 install'
+  - printf '[build]\ncompiler = %CNAME%' > %PYTHON%\\Lib\\distutils\\distutils.cfg
+  - make -j4 install
