@@ -12,9 +12,11 @@ environment:
     # isn't covered by this document) at the time of writing.
 
     - PYTHON: "C:\\Python27"
-      TOOLSPATH: "C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0"
+      TOOLSPATH: "C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+      MAKE: make
     - PYTHON: "C:\\Python27-x64"
       TOOLSPATH: "C:\\mingw-w64\\x86_64-7.2.0-posix-seh-rt_v5-rev1\\bin"
+      MAKE: mingw32-make
 #    - PYTHON: "C:\\Python34"
 #    - PYTHON: "C:\\Python34-x64"
 #    - PYTHON: "C:\\Python35"
@@ -28,4 +30,4 @@ install:
   - cd C:\projects\cysignals
   - pip install -r requirements.txt
   - python -m cython --version
-  - make -j4 install
+  - '%MAKE% -j4 install'
