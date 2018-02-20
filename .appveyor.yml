@@ -16,11 +16,13 @@ environment:
       MAKE: make
       CNAME: mingw32
       ARCH: 32
+      PATCH: printf '[build]\ncompiler = %CNAME%' > %PYTHON%\\Lib\\distutils\\distutils.cfg
     - PYTHON: "C:\\Python27-x64"
       TOOLSPATH: "C:\\mingw-w64\\x86_64-7.2.0-posix-seh-rt_v5-rev1\\mingw64\\bin;C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
       MAKE: mingw32-make
       CNAME: mingw64
       ARCH: 64
+      PATCH: appveyorutil\\patch2.7.64.bat
 #    - PYTHON: "C:\\Python34"
 #    - PYTHON: "C:\\Python34-x64"
 #    - PYTHON: "C:\\Python35"
@@ -29,17 +31,18 @@ environment:
 #    - PYTHON: "C:\\Python36"
 #    - PYTHON: "C:\\Python36-x64"
 
-install:
+before_build:
   - set PATH=%PYTHON%;%PYTHON%\\scripts;%TOOLSPATH%;%PATH%
+  - echo %PATH%
   - cd C:\projects\cysignals
   - pip install -r requirements.txt
   - python --version
-  - git --version
   - python -m cython --version
-  - IF "%ARCH%"=="32" (
-      printf '[build]\ncompiler = %CNAME%' > %PYTHON%\\Lib\\distutils\\distutils.cfg
-    )
-    ELSE (
-      echo TEST 64
-    )
+  - '%PATCH%'
+  - more %PYTHON%\\Lib\\distutils\\distutils.cfg
+
+build_script:
   - '%MAKE% -j4 install'
+
+test_script:
+  - '%MAKE% -j4 check-all distcheck'

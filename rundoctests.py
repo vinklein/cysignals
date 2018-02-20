@@ -9,7 +9,8 @@
 import os
 import sys
 import doctest
-import resource
+if os.name != 'nt':
+    import resource
 
 flags = doctest.ELLIPSIS
 
@@ -24,13 +25,13 @@ from cysignals.signals import AlarmInterrupt, SignalError
 for typ in [AlarmInterrupt, SignalError]:
     typ.__module__ = "__main__"
 
+if os.name != 'nt':
+    # Limit stack size to avoid errors in stack overflow doctest
+    stacksize = 1 << 20
+    resource.setrlimit(resource.RLIMIT_STACK, (stacksize, stacksize))
 
-# Limit stack size to avoid errors in stack overflow doctest
-stacksize = 1 << 20
-resource.setrlimit(resource.RLIMIT_STACK, (stacksize, stacksize))
-
-# Disable core dumps
-resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+    # Disable core dumps
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
 
 success = True
