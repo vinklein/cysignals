@@ -9,12 +9,42 @@
 import os
 import sys
 import doctest
+from doctest import DocTestParser, OPTIONFLAGS_BY_NAME
+from multiprocessing import Process
 if os.name != 'nt':
     import resource
 
 flags = doctest.ELLIPSIS
 
-filenames = sys.argv[1:]
+filenames = list(sys.argv[1:])
+if os.name == 'nt':
+    notinwindows = ['src/cysignals/pysignals.pyx', 'src/cysignals/alarm.pyx', 'src/cysignals/pselect.pyx']
+
+    for f in list(filenames):
+        if f in notinwindows:
+            filenames.remove(f)
+
+# Add an option to flag doctest what should not be run on windows.
+doctest.register_optionflag("SKIP_WINDOWS")
+flag_skip_windows = OPTIONFLAGS_BY_NAME["SKIP_WINDOWS"]
+
+
+class WindowsSkipDocTestParser(DocTestParser):
+
+    def _find_options(self, source, name, lineno):
+        options = DocTestParser._find_options(self, source, name, lineno)
+
+        if flag_skip_windows in options.keys() and os.name == 'nt':
+            # Replace SKIP_WINDOWS with SKIP flag if we are on windows.
+            options[OPTIONFLAGS_BY_NAME["SKIP"]] = options[flag_skip_windows]
+            del options[flag_skip_windows]
+
+        return options
+
+
+parser = WindowsSkipDocTestParser()
+
+
 print("Doctesting {} files.".format(len(filenames)))
 
 # For doctests, we want exceptions to look the same,
@@ -33,39 +63,42 @@ if os.name != 'nt':
     # Disable core dumps
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
+def testfile(file):
+    # Child process
+    try:
+        if sys.platform == 'darwin':
+            from cysignals.signals import _setup_alt_stack
+            _setup_alt_stack()
+        failures, _ = doctest.testfile(file, module_relative=False, optionflags=flags, parser=parser)
+        if not failures:
+            os._exit(0)
+    finally:
+        os._exit(23)
 
-success = True
-for f in filenames:
-    print(f)
-    sys.stdout.flush()
+if __name__ == "__main__": # Mandatory for windows cases.
+    success = True
+    for f in filenames:
+        print(f)
+        sys.stdout.flush()
 
-    # Test every file in a separate process (like in SageMath) to avoid
-    # side effects from doctests.
-    pid = os.fork()
-    if not pid:
-        # Child process
-        try:
-            if sys.platform == 'darwin':
-                from cysignals.signals import _setup_alt_stack
-                _setup_alt_stack()
-            failures, _ = doctest.testfile(f, module_relative=False, optionflags=flags)
-            if not failures:
-                os._exit(0)
-        finally:
-            os._exit(23)
+        # Test every file in a separate process (like in SageMath) to avoid
+        # side effects from doctests.
+        p = Process(target=testfile, args=(f,))
+        p.start()
+        p.join(200)
+        status = p.exitcode
 
-    pid, status = os.waitpid(pid, 0)
-    if status != 0:
-        success = False
-        if os.WIFEXITED(status):
-            st = os.WEXITSTATUS(status)
-            if st != 23:
-                print("bad exit: {}".format(st))
-        elif os.WIFSIGNALED(status):
-            sig = os.WTERMSIG(status)
-            print("killed by signal: {}".format(sig))
-        else:
-            print("unknown status: {}".format(status))
+        if status != 0:
+            success = False
+            if os.name != 'nt':
+                if os.WIFEXITED(status):
+                    st = os.WEXITSTATUS(status)
+                    if st != 23:
+                        print("bad exit: {}".format(st))
+                elif os.WIFSIGNALED(status):
+                    sig = os.WTERMSIG(status)
+                    print("killed by signal: {}".format(sig))
+                else:
+                    print("unknown status: {}".format(status))
 
-
-sys.exit(0 if success else 1)
+    sys.exit(0 if success else 1)

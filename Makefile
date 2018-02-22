@@ -6,6 +6,13 @@ PYTHON = python
 PIP = $(PYTHON) -m pip -v
 LS_R = ls -Ra1
 
+ifeq ($(OS),Windows_NT)
+    #LN_SITE_PACKAGE = cd tmp && cmd /c "mklink /D site-packages local/Lib/site-packages"
+    LN_SITE_PACKAGE = cd tmp && ln -s local/Lib/site-packages site-packages
+else
+    LN_SITE_PACKAGE = cd tmp && ln -s local/lib*/python*/site-packages site-packages
+endif
+
 # We add ulimit -s 1024 in this Makefile to work around a very strange
 # OS X bug manifesting itself with Python 3 and old versions of GNU make.
 # This was discovered at https://github.com/sagemath/cysignals/issues/71
@@ -38,6 +45,7 @@ doc:
 #####################
 
 clean: clean-doc clean-build
+	echo $(CURDIR)
 	rm -rf tmp
 
 clean-build:
@@ -91,8 +99,8 @@ check-tmp:
 prefix-install: configure
 	rm -rf tmp/local tmp/build
 	$(PYTHON) setup.py install --prefix="`pwd`/tmp/local" --root=tmp/build
-	cd tmp && mv "build/`pwd`/local" local
-	cd tmp && ln -s local/lib*/python*/site-packages site-packages
+	cd tmp && mv "build/$(subst C:/,/,$(subst /c/,/,$(CURDIR)/tmp))/local" local
+	$(LN_SITE_PACKAGE)
 
 check-prefix: check-prefix-doctest check-prefix-example
 

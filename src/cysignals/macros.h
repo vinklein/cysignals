@@ -312,7 +312,7 @@ static inline void sig_error(void)
      * So we can't call abort if we are on Windows.
      */
     cysigs.sig_mapped_to_FPE = 128;
-    fprintf(stderr, "sig_error raising SIGFPE\n");
+    //fprintf(stderr, "sig_error raising SIGFPE\n");
     raise(SIGFPE);
 #else
     abort();
