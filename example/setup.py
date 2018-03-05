@@ -1,8 +1,13 @@
 #!/usr/bin/env python
 
 from setuptools import setup
+from setuptools.extension import Extension
 from distutils.command.build import build as _build
 
+# Option "-D_hypot=hypot" is mandatory for mingw64
+extensions = [Extension('cysignals_example',
+                        ['cysignals_example.pyx'],
+                        extra_compile_args=['-D_hypot=hypot'])]
 
 class build(_build):
     def run(self):
@@ -22,6 +27,6 @@ setup(
     version='1.0',
     license='Public Domain',
     setup_requires=["Cython>=0.28"],
-    ext_modules=["cysignals_example.pyx"],
+    ext_modules=extensions,
     cmdclass=dict(build=build),
 )
