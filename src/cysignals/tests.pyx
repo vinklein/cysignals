@@ -853,196 +853,196 @@ def test_try_finally_return():
 ########################################################################
 # Test sig_block()/sig_unblock()                                       #
 ########################################################################
-# IF UNAME_SYSNAME != 'Windows':
-#     def test_sig_block(long delay=DEFAULT_DELAY):
-#         """
-#         TESTS::
-#
-#             >>> from cysignals.tests import *
-#             >>> test_sig_block()     # doctest: +SKIP_WINDOWS
-#             42
-#
-#         """
-#         cdef volatile_int v = 0
-#
-#         try:
-#             with nogil:
-#                 sig_on()
-#                 sig_block()
-#                 signal_after_delay(SIGINT, delay)
-#                 ms_sleep(delay * 2)  # We get signaled during this sleep
-#                 v = 42
-#                 sig_unblock()        # Here, the interrupt will be handled
-#                 sig_off()
-#         except KeyboardInterrupt:
-#             return v
-#
-#         # Never reached
-#         return 1
-#
-#     def test_sig_block_nested(long delay=DEFAULT_DELAY):
-#         """
-#         TESTS::
-#
-#             >>> from cysignals.tests import *
-#             >>> test_sig_block()     # doctest: +SKIP_WINDOWS
-#             42
-#
-#         """
-#         cdef volatile_int v = 0
-#
-#         try:
-#             with nogil:
-#                 sig_on()
-#                 sig_block()
-#                 sig_block()
-#                 sig_block()
-#                 signal_after_delay(SIGINT, delay)
-#                 sig_unblock()
-#                 ms_sleep(delay * 2)  # We get signaled during this sleep
-#                 sig_check()
-#                 sig_unblock()
-#                 sig_on()
-#                 sig_off()
-#                 v = 42
-#                 sig_unblock()        # Here, the interrupt will be handled
-#                 sig_off()
-#         except KeyboardInterrupt:
-#             return v
-#
-#         # Never reached
-#         return 1
-#
-#     def test_sig_block_outside_sig_on(long delay=DEFAULT_DELAY):
-#         """
-#         TESTS::
-#
-#             >>> from cysignals.tests import *
-#             >>> test_sig_block_outside_sig_on()      # doctest: +SKIP_WINDOWS
-#             'Success'
-#
-#         """
-#         with nogil:
-#             signal_after_delay(SIGINT, delay)
-#
-#             # sig_block()/sig_unblock() shouldn't do anything
-#             # since we're outside of sig_on()
-#             sig_block()
-#             sig_block()
-#             ms_sleep(delay * 2)  # We get signaled during this sleep
-#             sig_unblock()
-#             sig_unblock()
-#
-#         try:
-#             sig_on()  # Interrupt caught here
-#         except KeyboardInterrupt:
-#             return "Success"
-#         abort()   # This should not be reached
-#
-#     def test_signal_during_malloc(long delay=DEFAULT_DELAY):
-#         """
-#         Test a signal arriving during a sig_malloc() or sig_free() call.
-#         Since these are wrapped with sig_block()/sig_unblock(), we should
-#         safely be able to interrupt them.
-#
-#         TESTS::
-#
-#             >>> from cysignals.tests import *
-#             >>> for i in range(5):  # Several times to reduce chances of false positive
-#             ...     test_signal_during_malloc()  # doctest: +SKIP_WINDOWS
-#
-#         """
-#         try:
-#             with nogil:
-#                 signal_after_delay(SIGINT, delay)
-#                 sig_on()
-#                 infinite_malloc_loop()
-#         except KeyboardInterrupt:
-#             pass
-#
-#
-# ########################################################################
-# # Benchmarking functions                                               #
-# ########################################################################
-# def sig_on_bench():
-#     """
-#     Call ``sig_on()`` and ``sig_off()`` 1 million times.
-#
-#     TESTS::
-#
-#         >>> from cysignals.tests import *
-#         >>> sig_on_bench()
-#
-#     """
-#     cdef int i
-#     with nogil:
-#         for i in range(1000000):
-#             sig_on()
-#             sig_off()
-#
-# def sig_check_bench():
-#     """
-#     Call ``sig_check()`` 1 million times.
-#
-#     TESTS::
-#
-#         >>> from cysignals.tests import *
-#         >>> sig_check_bench()
-#
-#     """
-#     cdef int i
-#     with nogil:
-#         for i in range(1000000):
-#             sig_check()
-#
-#
-# ########################################################################
-# # Test SIGHUP                                                          #
-# ########################################################################
-# IF UNAME_SYSNAME != 'Windows':
-#     @return_exception
-#     def test_sighup(long delay=DEFAULT_DELAY):
-#         """
-#         Test a basic SIGHUP signal, which would normally exit the Python interpreter
-#         by raising ``SystemExit``.
-#
-#         TESTS::
-#
-#             >>> from cysignals.tests import *
-#             >>> test_sighup()    # doctest: +SKIP_WINDOWS
-#             SystemExit()
-#
-#         """
-#         with nogil:
-#             signal_after_delay(SIGHUP, delay)
-#             while True:
-#                 sig_check()
-#
-#     @return_exception
-#     def test_sighup_and_sigint(long delay=DEFAULT_DELAY):
-#         """
-#         Test a SIGHUP and a SIGINT arriving at essentially the same time.
-#         The SIGINT should be ignored and we should get a ``SystemExit``.
-#
-#         TESTS::
-#
-#             >>> from cysignals.tests import *
-#             >>> test_sighup_and_sigint()     # doctest: +SKIP_WINDOWS
-#             SystemExit()
-#
-#         """
-#         with nogil:
-#             sig_on()
-#             sig_block()
-#             signal_after_delay(SIGHUP, delay)
-#             signal_after_delay(SIGINT, delay)
-#             # 3 sleeps to ensure both signals arrive
-#             ms_sleep(delay)
-#             ms_sleep(delay)
-#             ms_sleep(delay)
-#             sig_unblock()
-#             sig_off()
-#
+IF UNAME_SYSNAME != 'Windows':
+    def test_sig_block(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
+
+            >>> from cysignals.tests import *
+            >>> test_sig_block()     # doctest: +SKIP_WINDOWS
+            42
+
+        """
+        cdef volatile_int v = 0
+
+        try:
+            with nogil:
+                sig_on()
+                sig_block()
+                signal_after_delay(SIGINT, delay)
+                ms_sleep(delay * 2)  # We get signaled during this sleep
+                v = 42
+                sig_unblock()        # Here, the interrupt will be handled
+                sig_off()
+        except KeyboardInterrupt:
+            return v
+
+        # Never reached
+        return 1
+
+    def test_sig_block_nested(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
+
+            >>> from cysignals.tests import *
+            >>> test_sig_block()     # doctest: +SKIP_WINDOWS
+            42
+
+        """
+        cdef volatile_int v = 0
+
+        try:
+            with nogil:
+                sig_on()
+                sig_block()
+                sig_block()
+                sig_block()
+                signal_after_delay(SIGINT, delay)
+                sig_unblock()
+                ms_sleep(delay * 2)  # We get signaled during this sleep
+                sig_check()
+                sig_unblock()
+                sig_on()
+                sig_off()
+                v = 42
+                sig_unblock()        # Here, the interrupt will be handled
+                sig_off()
+        except KeyboardInterrupt:
+            return v
+
+        # Never reached
+        return 1
+
+    def test_sig_block_outside_sig_on(long delay=DEFAULT_DELAY):
+        """
+        TESTS::
+
+            >>> from cysignals.tests import *
+            >>> test_sig_block_outside_sig_on()      # doctest: +SKIP_WINDOWS
+            'Success'
+
+        """
+        with nogil:
+            signal_after_delay(SIGINT, delay)
+
+            # sig_block()/sig_unblock() shouldn't do anything
+            # since we're outside of sig_on()
+            sig_block()
+            sig_block()
+            ms_sleep(delay * 2)  # We get signaled during this sleep
+            sig_unblock()
+            sig_unblock()
+
+        try:
+            sig_on()  # Interrupt caught here
+        except KeyboardInterrupt:
+            return "Success"
+        abort()   # This should not be reached
+
+    def test_signal_during_malloc(long delay=DEFAULT_DELAY):
+        """
+        Test a signal arriving during a sig_malloc() or sig_free() call.
+        Since these are wrapped with sig_block()/sig_unblock(), we should
+        safely be able to interrupt them.
+
+        TESTS::
+
+            >>> from cysignals.tests import *
+            >>> for i in range(5):  # Several times to reduce chances of false positive
+            ...     test_signal_during_malloc()  # doctest: +SKIP_WINDOWS
+
+        """
+        try:
+            with nogil:
+                signal_after_delay(SIGINT, delay)
+                sig_on()
+                infinite_malloc_loop()
+        except KeyboardInterrupt:
+            pass
+
+
+########################################################################
+# Benchmarking functions                                               #
+########################################################################
+def sig_on_bench():
+    """
+    Call ``sig_on()`` and ``sig_off()`` 1 million times.
+
+    TESTS::
+
+        >>> from cysignals.tests import *
+        >>> sig_on_bench()
+
+    """
+    cdef int i
+    with nogil:
+        for i in range(1000000):
+            sig_on()
+            sig_off()
+
+def sig_check_bench():
+    """
+    Call ``sig_check()`` 1 million times.
+
+    TESTS::
+
+        >>> from cysignals.tests import *
+        >>> sig_check_bench()
+
+    """
+    cdef int i
+    with nogil:
+        for i in range(1000000):
+            sig_check()
+
+
+########################################################################
+# Test SIGHUP                                                          #
+########################################################################
+IF UNAME_SYSNAME != 'Windows':
+    @return_exception
+    def test_sighup(long delay=DEFAULT_DELAY):
+        """
+        Test a basic SIGHUP signal, which would normally exit the Python interpreter
+        by raising ``SystemExit``.
+
+        TESTS::
+
+            >>> from cysignals.tests import *
+            >>> test_sighup()    # doctest: +SKIP_WINDOWS
+            SystemExit()
+
+        """
+        with nogil:
+            signal_after_delay(SIGHUP, delay)
+            while True:
+                sig_check()
+
+    @return_exception
+    def test_sighup_and_sigint(long delay=DEFAULT_DELAY):
+        """
+        Test a SIGHUP and a SIGINT arriving at essentially the same time.
+        The SIGINT should be ignored and we should get a ``SystemExit``.
+
+        TESTS::
+
+            >>> from cysignals.tests import *
+            >>> test_sighup_and_sigint()     # doctest: +SKIP_WINDOWS
+            SystemExit()
+
+        """
+        with nogil:
+            sig_on()
+            sig_block()
+            signal_after_delay(SIGHUP, delay)
+            signal_after_delay(SIGINT, delay)
+            # 3 sleeps to ensure both signals arrive
+            ms_sleep(delay)
+            ms_sleep(delay)
+            ms_sleep(delay)
+            sig_unblock()
+            sig_off()
+
 def test_graceful_exit():
     r"""
     Start a subprocess, set up some ``atexit`` handler and kill the
@@ -1051,15 +1051,15 @@ def test_graceful_exit():
 
         >>> from sys import executable
         >>> from subprocess import *
-        >>> A = Popen([executable], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        >>> _ = A.stdin.write(b'from cysignals.tests import test_graceful_exit\n')
-        >>> _ = A.stdin.write(b'test_graceful_exit()\n')
-        >>> A.stdin.close()
+        >>> A = Popen([executable], stdin=PIPE, stdout=PIPE, stderr=PIPE) # doctest: +SKIP_WINDOWS
+        >>> _ = A.stdin.write(b'from cysignals.tests import test_graceful_exit\n') # doctest: +SKIP_WINDOWS
+        >>> _ = A.stdin.write(b'test_graceful_exit()\n') # doctest: +SKIP_WINDOWS
+        >>> A.stdin.close() # doctest: +SKIP_WINDOWS
 
     Now read from the child until we read ``"GO"``.  This ensures that
     the child process has properly started before we kill it::
 
-        >>> while b'GO' not in A.stdout.readline(): pass
+        >>> while b'GO' not in A.stdout.readline(): pass # doctest: +SKIP_WINDOWS
         >>> import os, signal, sys
         >>> os.kill(A.pid, signal.SIGHUP)  # doctest: +SKIP_WINDOWS
         >>> _ = sys.stdout.write(A.stdout.read().decode("utf-8"))  # doctest: +SKIP_WINDOWS
