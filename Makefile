@@ -46,6 +46,8 @@ doc:
 
 clean: clean-doc clean-build
 	echo $(CURDIR)
+	echo blablabla
+	ls
 	rm -rf tmp
 
 clean-build:
@@ -99,7 +101,7 @@ check-tmp:
 prefix-install: configure
 	rm -rf tmp/local tmp/build
 	$(PYTHON) setup.py install --prefix="`pwd`/tmp/local" --root=tmp/build
-	cd tmp && mv "build/$(subst C:/,/,$(subst /c/,/,$(CURDIR)/tmp))/local" local
+	cd tmp && mv "build/$(subst c:/,/,$(subst C:/,/,$(subst /c/,/,$(CURDIR)/tmp)))/local" local
 	$(LN_SITE_PACKAGE)
 
 check-prefix: check-prefix-doctest check-prefix-example
