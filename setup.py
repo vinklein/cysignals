@@ -54,12 +54,16 @@ extensions = [
     Extension("cysignals.tests", ["src/cysignals/tests.pyx"], **kwds)
 ]
 
+scripts = []
+
 if os.name is not 'nt':
     extensions.extend([
         Extension("cysignals.pysignals", ["src/cysignals/pysignals.pyx"], **kwds),
         Extension("cysignals.alarm", ["src/cysignals/alarm.pyx"], **kwds),
         Extension("cysignals.pselect", ["src/cysignals/pselect.pyx"], **kwds),
     ])
+
+    scripts = glob(opj("src", "scripts", "*"))
 
 classifiers = [
     'Development Status :: 5 - Production/Stable',
@@ -163,13 +167,12 @@ setup(
     long_description=README,
     classifiers=classifiers,
     setup_requires=["Cython>=0.28b1"],
-
     ext_modules=extensions,
     packages=["cysignals"],
     package_dir={"cysignals": opj("src", "cysignals"),
                  "cysignals-cython": opj(cythonize_dir, "src", "cysignals")},
     package_data={"cysignals": ["*.pxi", "*.pxd", "*.h"],
                   "cysignals-cython": ["*.h"]},
-    scripts=glob(opj("src", "scripts", "*")),
+    scripts=scripts,
     cmdclass=dict(build=build, build_py=build_py, bdist_egg=no_egg),
 )

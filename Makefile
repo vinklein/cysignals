@@ -45,8 +45,6 @@ doc:
 #####################
 
 clean: clean-doc clean-build
-	echo $(CURDIR)
-	echo blablabla
 	ls
 	rm -rf tmp
 
