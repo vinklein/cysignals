@@ -15,21 +15,42 @@ environment:
       TOOLSPATH: "C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
       MAKE: make
       CNAME: mingw32
-      ARCH: 32
       PATCH: printf '[build]\ncompiler = %CNAME%' > %PYTHON%\\Lib\\distutils\\distutils.cfg
+    - PYTHON: "C:\\Python34"
+      TOOLSPATH: "C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+      MAKE: make
+      CNAME: mingw32
+      PATCH: printf '[build]\ncompiler = %CNAME%' > %PYTHON%\\Lib\\distutils\\distutils.cfg
+#    - PYTHON: "C:\\Python35"
+#      TOOLSPATH: "C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+#      MAKE: make
+#      CNAME: mingw32
+#      PATCH: appveyorutil\\patchdistutils.bat mingw32.python3.5.patch
+#    - PYTHON: "C:\\Python36"
+#      TOOLSPATH: "C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+#      MAKE: make
+#      CNAME: mingw32
+#      PATCH: printf '[build]\ncompiler = %CNAME%' > %PYTHON%\\Lib\\distutils\\distutils.cfg
     - PYTHON: "C:\\Python27-x64"
       TOOLSPATH: "C:\\mingw-w64\\x86_64-7.2.0-posix-seh-rt_v5-rev1\\mingw64\\bin;C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
       MAKE: mingw32-make
       CNAME: mingw64
-      ARCH: 64
-      PATCH: appveyorutil\\patch2.7.64.bat
-#    - PYTHON: "C:\\Python34"
-#    - PYTHON: "C:\\Python34-x64"
-#    - PYTHON: "C:\\Python35"
-#      DISTUTILS_USE_SDK: "1"
+      PATCH: appveyorutil\\patchdistutils.bat mingw64.python2.7.14.patch
+    - PYTHON: "C:\\Python34-x64"
+      TOOLSPATH: "C:\\mingw-w64\\x86_64-7.2.0-posix-seh-rt_v5-rev1\\mingw64\\bin;C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+      MAKE: mingw32-make
+      CNAME: mingw64
+      PATCH: appveyorutil\\patchdistutils.bat mingw64.python3.4.4.patch
 #    - PYTHON: "C:\\Python35-x64"
-#    - PYTHON: "C:\\Python36"
+#      TOOLSPATH: "C:\\mingw-w64\\x86_64-7.2.0-posix-seh-rt_v5-rev1\\mingw64\\bin;C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+#      MAKE: mingw32-make
+#      CNAME: mingw64
+#      PATCH: appveyorutil\\patch2.7.64.bat
 #    - PYTHON: "C:\\Python36-x64"
+#      TOOLSPATH: "C:\\mingw-w64\\x86_64-7.2.0-posix-seh-rt_v5-rev1\\mingw64\\bin;C:\\MinGW\\bin;C:\\MinGW\\msys\\1.0\\bin"
+#      MAKE: mingw32-make
+#      CNAME: mingw64
+#      PATCH: appveyorutil\\patch2.7.64.bat
 
 before_build:
   - set PATH=%PYTHON%;%PYTHON%\\scripts;%TOOLSPATH%;%PATH%
@@ -45,4 +66,4 @@ build_script:
   - '%MAKE% -j4 install'
 
 test_script:
-  - '%MAKE% -j1 check-all distcheck'
+  - '%MAKE% -j4 check-all distcheck'
