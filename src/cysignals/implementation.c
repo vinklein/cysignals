@@ -825,7 +825,7 @@ static void sigdie(int sig, const char* s)
 
     if (s) {
         fprintf(stderr,
-                "%s\nsig_on count = %d\n"
+                "%s\n"
                         "This probably occurred because a *compiled* module has a bug\n"
                         "in it and is not properly wrapped with sig_on(), sig_off().\n"
                         "Python will now terminate.\n", s, cysigs.sig_on_count);

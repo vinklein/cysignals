@@ -7,17 +7,16 @@ PIP = $(PYTHON) -m pip -v
 LS_R = ls -Ra1
 
 ifeq ($(OS),Windows_NT)
-    #LN_SITE_PACKAGE = cd tmp && cmd /c "mklink /D site-packages local/Lib/site-packages"
     LN_SITE_PACKAGE = cd tmp && ln -s local/Lib/site-packages site-packages
+    DOCTEST = $(PYTHON) -B rundoctests.py
 else
     LN_SITE_PACKAGE = cd tmp && ln -s local/lib*/python*/site-packages site-packages
+    # We add ulimit -s 1024 in this Makefile to work around a very strange
+	# OS X bug manifesting itself with Python 3 and old versions of GNU make.
+	# This was discovered at https://github.com/sagemath/cysignals/issues/71
+	# but I don't know a good analysis nor solution.
+    DOCTEST = ulimit -s 1024 && $(PYTHON) -B rundoctests.py
 endif
-
-# We add ulimit -s 1024 in this Makefile to work around a very strange
-# OS X bug manifesting itself with Python 3 and old versions of GNU make.
-# This was discovered at https://github.com/sagemath/cysignals/issues/71
-# but I don't know a good analysis nor solution.
-DOCTEST = ulimit -s 1024 && $(PYTHON) -B rundoctests.py
 
 
 #####################
@@ -45,7 +44,6 @@ doc:
 #####################
 
 clean: clean-doc clean-build
-	ls
 	rm -rf tmp
 
 clean-build:

@@ -584,10 +584,9 @@ def unguarded_dereference_null_pointer():
         >>> from subprocess import *
         >>> cmd = 'from cysignals.tests import *; unguarded_dereference_null_pointer()'
         >>> msg = Popen([executable, '-c', cmd], stdout=PIPE, stderr=PIPE).communicate()[1]
-        >>> print(msg.decode("utf-8")) # doctest: +SKIP_WINDOWS
+        >>> print(msg)
         ------------------------------------------------------------------------
         ...
-        ------------------------------------------------------------------------
         Unhandled SIG...
         This probably occurred because a *compiled* module has a bug
         in it and is not properly wrapped with sig_on(), sig_off().
