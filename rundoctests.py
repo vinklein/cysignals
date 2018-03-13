@@ -26,7 +26,9 @@ if os.name == 'nt':
 
 # Add an option to flag doctest what should not be run on windows.
 doctest.register_optionflag("SKIP_WINDOWS")
+doctest.register_optionflag("SKIP_POSIX")
 flag_skip_windows = OPTIONFLAGS_BY_NAME["SKIP_WINDOWS"]
+flag_skip_posix = OPTIONFLAGS_BY_NAME["SKIP_POSIX"]
 
 
 class WindowsSkipDocTestParser(DocTestParser):
@@ -38,6 +40,11 @@ class WindowsSkipDocTestParser(DocTestParser):
             # Replace SKIP_WINDOWS with SKIP flag if we are on windows.
             options[OPTIONFLAGS_BY_NAME["SKIP"]] = options[flag_skip_windows]
             del options[flag_skip_windows]
+
+        if flag_skip_posix in options.keys() and os.name != 'nt':
+            # Replace SKIP_POSIX with SKIP flag if we are not on windows.
+            options[OPTIONFLAGS_BY_NAME["SKIP"]] = options[flag_skip_posix]
+            del options[flag_skip_posix]
 
         return options
 
