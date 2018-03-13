@@ -583,11 +583,11 @@ def unguarded_dereference_null_pointer():
         >>> from sys import executable
         >>> from subprocess import *
         >>> cmd = 'from cysignals.tests import *; unguarded_dereference_null_pointer()'
-        >>> msg = Popen([executable, '-c', cmd], stdout=PIPE, stderr=PIPE).communicate()[1]
-        >>> print(msg)
-        ------------------------------------------------------------------------
+        >>> msg = Popen([executable, '-c', cmd], stdout=PIPE, stderr=PIPE, universal_newlines=True).communicate()[1]
+        >>> print(msg.decode("utf-8"))
         ...
         Unhandled SIG...
+        ...
         This probably occurred because a *compiled* module has a bug
         in it and is not properly wrapped with sig_on(), sig_off().
         Python will now terminate.
