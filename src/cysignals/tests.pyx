@@ -643,11 +643,23 @@ def unguarded_abort():
         >>> from sys import executable
         >>> from subprocess import *
         >>> cmd = 'from cysignals.tests import *; unguarded_abort()'
-        >>> print(Popen([executable, '-c', cmd], stdout=PIPE, stderr=PIPE).communicate()[1].decode("utf-8")) # doctest: +SKIP_WINDOWS
+        >>> msg = Popen([executable, '-c', cmd], stdout=PIPE, stderr=PIPE, universal_newlines=True).communicate()[1]
+        >>> print(msg) # doctest: +SKIP_WINDOWS
         ------------------------------------------------------------------------
         ...
         ------------------------------------------------------------------------
         Unhandled SIGABRT: An abort() occurred.
+        This probably occurred because a *compiled* module has a bug
+        in it and is not properly wrapped with sig_on(), sig_off().
+        Python will now terminate.
+        ------------------------------------------------------------------------
+        <BLANKLINE>
+        >>> print(msg) # doctest: +SKIP
+        <BLANKLINE>
+        This application has requested the Runtime to terminate it in an unusual way.
+        ...
+        Unhandled SIGABRT: An abort() occurred.
+        ...
         This probably occurred because a *compiled* module has a bug
         in it and is not properly wrapped with sig_on(), sig_off().
         Python will now terminate.

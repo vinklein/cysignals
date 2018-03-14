@@ -66,4 +66,4 @@ build_script:
   - '%MAKE% -j4 install'
 
 test_script:
-  - '%MAKE% -j4 check-all distcheck'
+  - '%MAKE% -j1 check-all distcheck'
