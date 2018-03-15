@@ -31,7 +31,7 @@ flag_skip_windows = OPTIONFLAGS_BY_NAME["SKIP_WINDOWS"]
 flag_skip_posix = OPTIONFLAGS_BY_NAME["SKIP_POSIX"]
 
 
-class WindowsSkipDocTestParser(DocTestParser):
+class SkipByOsDocTestParser(DocTestParser):
 
     def _find_options(self, source, name, lineno):
         options = DocTestParser._find_options(self, source, name, lineno)
@@ -49,7 +49,7 @@ class WindowsSkipDocTestParser(DocTestParser):
         return options
 
 
-parser = WindowsSkipDocTestParser()
+parser = SkipByOsDocTestParser()
 
 
 print("Doctesting {} files.".format(len(filenames)))
@@ -92,7 +92,7 @@ if __name__ == "__main__": # Mandatory for windows cases.
         # side effects from doctests.
         p = Process(target=testfile, args=(f,))
         p.start()
-        p.join(200)
+        p.join(600)
         status = p.exitcode
 
         if status != 0:

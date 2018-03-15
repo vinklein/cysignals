@@ -56,7 +56,7 @@ extensions = [
 
 scripts = []
 
-if os.name is not 'nt':
+if os.name != 'nt':
     extensions.extend([
         Extension("cysignals.pysignals", ["src/cysignals/pysignals.pyx"], **kwds),
         Extension("cysignals.alarm", ["src/cysignals/alarm.pyx"], **kwds),

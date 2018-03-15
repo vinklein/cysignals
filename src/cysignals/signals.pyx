@@ -37,8 +37,7 @@ cdef extern from "implementation.c":
     void _sig_on_interrupt_received() nogil
     void _sig_on_recover() nogil
     void _sig_off_warning(const char*, int) nogil
-    IF UNAME_SYSNAME != 'Windows':
-        void setup_alt_stack() nogil
+    void setup_alt_stack() nogil
 
 class AlarmInterrupt(KeyboardInterrupt):
     """
