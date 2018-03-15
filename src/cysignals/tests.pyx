@@ -43,7 +43,9 @@ from .memory cimport *
 
 cdef extern from 'tests_helper.c':
     void ms_sleep(long ms) nogil
-    IF UNAME_SYSNAME != 'Windows':
+
+IF UNAME_SYSNAME != 'Windows':
+    cdef extern from 'tests_helper.c':
         void signal_after_delay(int signum, long ms) nogil
         void signals_after_delay(int signum, long ms, long interval, int n) nogil
 
@@ -61,6 +63,7 @@ cdef long DEFAULT_DELAY = 200
 
 from .signals import set_debug_level
 set_debug_level(0)
+
 
 ########################################################################
 # C helper functions                                                   #
