@@ -7,6 +7,7 @@ See ``tests.pyx`` for extensive tests.
 #*****************************************************************************
 #       Copyright (C) 2011-2016 Jeroen Demeyer <J.Demeyer@UGent.be>
 #                     2016 Marc Culler and Nathan Dunfield
+#                     2018 Vincent Klein <vinklein@gmail.com>
 #
 #  cysignals is free software: you can redistribute it and/or modify it
 #  under the terms of the GNU Lesser General Public License as published
@@ -204,8 +205,8 @@ def init_cysignals():
     import signal
     old = signal.signal(signal.SIGINT, python_check_interrupt)
 
-    IF UNAME_SYSNAME != 'Windows':
-        setup_alt_stack()
+
+    setup_alt_stack()
     setup_cysignals_handlers()
 
     # Set debug level to 2 by default (if debugging was enabled)
@@ -213,14 +214,13 @@ def init_cysignals():
 
     return old
 
-IF UNAME_SYSNAME != 'Windows':
-    def _setup_alt_stack():
-        """
-        This is needed after forking on OS X because ``fork()`` disables
-        the alt stack. It is not clear to me whether this is a bug or
-        feature...
-        """
-        setup_alt_stack()
+def _setup_alt_stack():
+    """
+    This is needed after forking on OS X because ``fork()`` disables
+    the alt stack. It is not clear to me whether this is a bug or
+    feature...
+    """
+    setup_alt_stack()
 
 
 def set_debug_level(int level):

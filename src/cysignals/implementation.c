@@ -4,9 +4,10 @@ Interrupt and signal handling for Cython
 
 /*****************************************************************************
  *       Copyright (C) 2006 William Stein <wstein@gmail.com>
- *                     2006-2016 Martin Albrecht <martinralbrecht+cysignals@gmail.com
+ *                     2006-2016 Martin Albrecht <martinralbrecht+cysignals@gmail.com>
  *                     2016 Marc Culler and Nathan Dunfield
  *                     2010-2018 Jeroen Demeyer <J.Demeyer@UGent.be>
+ *					   2018 Vincent Klein <vinklein@gmail.com>
  *
  * cysignals is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published
@@ -729,7 +730,7 @@ static void cysigs_signal_handler(int sig)
 }
 
 __PYX_EXTERN_C DL_EXPORT(int) sig_raise_exception(int, char const *);
-//extern int sig_raise_exception(int sig, const char* msg);
+extern int sig_raise_exception(int sig, const char* msg);
 
 /* This calls sig_raise_exception() to actually raise the exception. */
 static void do_raise_exception(int sig)
@@ -815,6 +816,10 @@ static void print_sep(void)
 }
 
 static void print_backtrace(void)
+{
+}
+
+static void setup_alt_stack(void)
 {
 }
 
