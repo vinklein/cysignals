@@ -176,7 +176,7 @@ static inline void _sig_off_(const char* file, int line)
     else
     {
         --cysigs.sig_on_count;
-#if defined(__MINGW32__) || defined(_WIN32)
+#ifndef POSIX
       /* If a pari_error was generated, mingw32ctrlc should be reset to 0. */
       /* TODO: clarify win32ctrlc role. not sure if we need this.
          win32ctrlc is defined in paridecl.pxd file of cypari project.
@@ -256,7 +256,7 @@ static inline void sig_unblock(void)
     }
 #endif
     --cysigs.block_sigint;
-#if defined(__MINGW32__) || defined(_WIN32)
+#ifndef POSIX
     if (unlikely(cysigs.interrupt_received) && cysigs.sig_on_count > 0)
       raise(cysigs.interrupt_received);  /* Re-raise the signal */
 #else
@@ -279,7 +279,7 @@ static inline void sig_retry(void)
     {
         fprintf(stderr, "sig_retry() without sig_on()\n");
 
-#if defined(__MINGW32__) || defined(_WIN32)
+#ifndef POSIX
 		/*
 		    FIX ME!!!! <= Comment from cypari i don't really
 		    understand what behaviour is supposed to be fixed.
@@ -301,7 +301,7 @@ static inline void sig_error(void)
     {
         fprintf(stderr, "sig_error() without sig_on()\n");
     }
-#if defined(__MINGW32__) || defined(_WIN32)
+#ifndef POSIX
     /*
      * The Windows abort function will terminate the process no
      * matter what.  If a SIGABRT handler is set it will be called,
