@@ -14,13 +14,13 @@ if sys.platform == "win32":
     runtime_patch()
 
 # Option "-D_hypot=hypot" is mandatory for mingw64
+# See : https://github.com/python/cpython/pull/880
 extensions = [Extension('cysignals_example',
                         ['cysignals_example.pyx'],
                         extra_compile_args=['-D_hypot=hypot'])]
 
 
 class build(_build):
-
     def run(self):
         dist = self.distribution
         ext_modules = dist.ext_modules

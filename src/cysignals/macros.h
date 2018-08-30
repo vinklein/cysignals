@@ -176,18 +176,6 @@ static inline void _sig_off_(const char* file, int line)
     else
     {
         --cysigs.sig_on_count;
-#ifndef POSIX
-      /* If a pari_error was generated, mingw32ctrlc should be reset to 0. */
-      /* TODO: clarify win32ctrlc role. not sure if we need this.
-         win32ctrlc is defined in paridecl.pxd file of cypari project.
-
-    	if (win32ctrlc > 0)
-	  	{
-	  		win32ctrlc = 0;
-			raise(SIGINT);
-	  	}
-	  */
-#endif
     }
 }
 
@@ -256,15 +244,11 @@ static inline void sig_unblock(void)
     }
 #endif
     --cysigs.block_sigint;
-#ifndef POSIX
-    if (unlikely(cysigs.interrupt_received) && cysigs.sig_on_count > 0)
-      raise(cysigs.interrupt_received);  /* Re-raise the signal */
-#else
+
     if (unlikely(cysigs.interrupt_received))
         /* Re-raise the signal if we can handle it now */
         if (cysigs.sig_on_count > 0 && cysigs.block_sigint == 0)
             raise(cysigs.interrupt_received);
-#endif
 }
 
 
@@ -278,16 +262,7 @@ static inline void sig_retry(void)
     if (unlikely(cysigs.sig_on_count <= 0))
     {
         fprintf(stderr, "sig_retry() without sig_on()\n");
-
-#ifndef POSIX
-		/*
-		    FIX ME!!!! <= Comment from cypari i don't really
-		    understand what behaviour is supposed to be fixed.
-		*/
-		raise(SIGFPE);
-#else
-        abort();
-#endif
+        raise(SIGABRT);
     }
     cylongjmp(cysigs.env, -1);
 }
@@ -301,20 +276,9 @@ static inline void sig_error(void)
     {
         fprintf(stderr, "sig_error() without sig_on()\n");
     }
-#ifndef POSIX
-    /*
-     * The Windows abort function will terminate the process no
-     * matter what.  If a SIGABRT handler is set it will be called,
-     * but that is only to allow cleanup before the process is terminated.
-     * So we can't call abort if we are on Windows.
-     */
-    cysigs.sig_mapped_to_FPE = 128;
-    //fprintf(stderr, "sig_error raising SIGFPE\n");
-    raise(SIGFPE);
-#else
-    abort();
-#endif
+    raise(SIGABRT);
 }
+
 
 static inline int _set_debug_level(int level)
 {

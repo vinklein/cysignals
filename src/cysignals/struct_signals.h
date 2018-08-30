@@ -20,6 +20,7 @@
 
 #ifndef CYSIGNALS_STRUCT_SIGNALS_H
 #define CYSIGNALS_STRUCT_SIGNALS_H
+
 #if defined(__MINGW32__) || defined(_WIN32)
 #define sigjmp_buf jmp_buf
 #define siglongjmp longjmp

@@ -46,6 +46,7 @@ void ms_sleep(long ms)
     select(0, NULL, NULL, NULL, &t);
 }
 
+
 /* Signal process ``killpid`` with signal ``signum`` after ``ms``
  * milliseconds.  Wait ``interval`` milliseconds, then signal again.
  * Repeat this until ``n`` signals have been sent.
@@ -117,7 +118,6 @@ void signal_pid_after_delay(int signum, pid_t killpid, long ms, long interval, i
 
 /* The same as above, but sending ``n`` signals */
 #define signals_after_delay(signum, ms, interval, n) signal_pid_after_delay(signum, getpid(), ms, interval, n)
-
 #else
 void ms_sleep(long ms)
 {

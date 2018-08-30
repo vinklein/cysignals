@@ -37,12 +37,13 @@ static int PARI_SIGINT_pending = 0;
 #error "cysignals must be compiled without _FORTIFY_SOURCE"
 #endif
 
+
 #include "config.h"
-#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <Python.h>
 #include <pthread.h>
@@ -77,11 +78,6 @@ static int PARI_SIGINT_pending = 0;
 #  define inline __inline
 #endif
 static int win32ctrlc;
-
-// Define unexisting signals with SIGTERM value.
-#define SIGHUP SIGTERM
-#define SIGALRM SIGTERM
-#define SIGBUS SIGTERM
 #endif
 //end Windows specifics
 
@@ -93,15 +89,6 @@ static int win32ctrlc;
 #if ENABLE_DEBUG_CYSIGNALS
 static struct timeval sigtime;  /* Time of signal */
 #endif
-
-static void do_raise_exception(int sig);
-static void sigdie(int sig, const char* s);
-
-/* Implemented in signals.pyx */
-static int sig_raise_exception(int sig, const char* msg);
-
-#define BACKTRACELEN 1024
-static void print_backtrace(void);
 
 /* The cysigs object (there is a unique copy of this, shared by all
  * Cython modules using cysignals) */
@@ -125,6 +112,15 @@ static sigset_t default_sigmask;
 /* default_sigmask with SIGHUP, SIGINT, SIGALRM added. */
 static sigset_t sigmask_with_sigint;
 
+static void do_raise_exception(int sig);
+static void sigdie(int sig, const char* s);
+
+#define BACKTRACELEN 1024
+static void print_backtrace(void);
+
+/* Implemented in signals.pyx */
+static int sig_raise_exception(int sig, const char* msg);
+
 /* Kill all thread of the current process */
 static inline void kill_thread_group(int sig)
 {
@@ -135,12 +131,6 @@ static inline void kill_thread_group(int sig)
 #endif
 }
 
-static void print_sep(void)
-{
-    fputs("------------------------------------------------------------------------\n",
-          stderr);
-    fflush(stderr);
-}
 
 /* Do whatever is needed to reset the CPU to a sane state after
  * handling a signals.  In particular on x86 CPUs, we need to clear
@@ -155,235 +145,12 @@ static void print_sep(void)
  */
 static inline void reset_CPU(void)
 {
-    #if HAVE_EMMS
-		/* Clear FPU tag word */
-		asm("emms");
-	#endif
-}
-
-/* Print a backtrace if supported by libc */
-static void print_backtrace()
-{
-#if HAVE_BACKTRACE
-	void* backtracebuffer[BACKTRACELEN];
-    fflush(stderr);
-    int btsize = backtrace(backtracebuffer, BACKTRACELEN);
-    if (btsize)
-        backtrace_symbols_fd(backtracebuffer, btsize, 2);
-    else
-        fputs("(no backtrace available)\n", stderr);
-    print_sep();
+#if HAVE_EMMS
+    /* Clear FPU tag word */
+    asm("emms");
 #endif
 }
 
-/* Print a backtrace using gdb */
-static void print_enhanced_backtrace(void)
-{
-#ifdef POSIX
-    /* Bypass Linux Yama restrictions on ptrace() to allow debugging */
-    /* See https://www.kernel.org/doc/Documentation/security/Yama.txt */
-#ifdef PR_SET_PTRACER
-    prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0);
-#endif
-
-    /* Flush all buffers before forking */
-    fflush(stdout);
-    fflush(stderr);
-
-    pid_t parent_pid = getpid();
-    pid_t pid = fork();
-
-    if (pid < 0)
-    {
-        /* Failed to fork: no problem, just ignore */
-        perror("fork");
-        return;
-    }
-
-    if (pid == 0) { /* child */
-        /* Redirect all output to stderr */
-        dup2(2, 1);
-
-        /* We deliberately put these variables on the stack to avoid
-         * malloc() calls, the heap might be messed up! */
-        char path[1024];
-        char pid_str[32];
-        char* argv[5];
-
-        snprintf(path, sizeof(path), "cysignals-CSI");
-        snprintf(pid_str, sizeof(pid_str), "%i", parent_pid);
-
-        argv[0] = "cysignals-CSI";
-        argv[1] = "--no-color";
-        argv[2] = "--pid";
-        argv[3] = pid_str;
-        argv[4] = NULL;
-        execvp(path, argv);
-        perror("Failed to execute cysignals-CSI");
-        exit(2);
-    }
-    /* Wait for cysignals-CSI to finish */
-    waitpid(pid, NULL, 0);
-
-    print_sep();
-#endif
-}
-
-/* This calls sig_raise_exception() to actually raise the exception. */
-static void do_raise_exception(int sig)
-{
-#if ENABLE_DEBUG_CYSIGNALS
-    struct timeval raisetime;
-    if (cysigs.debug_level >= 2) {
-        gettimeofday(&raisetime, NULL);
-        long delta_ms = (raisetime.tv_sec - sigtime.tv_sec)*1000L + ((long)raisetime.tv_usec - (long)sigtime.tv_usec)/1000;
-        PyGILState_STATE gilstate = PyGILState_Ensure();
-        fprintf(stderr, "do_raise_exception(sig=%i)\nPyErr_Occurred() = %p\nRaising Python exception %li ms after signal...\n",
-            sig, PyErr_Occurred(), delta_ms);
-        PyGILState_Release(gilstate);
-        fflush(stderr);
-    }
-#endif
-
-    /* Call Cython function to raise exception */
-    sig_raise_exception(sig, cysigs.s);
-}
-
-static void setup_alt_stack(void)
-{
-#ifdef POSIX
-    /* Static space for the alternate signal stack. The size should be
-     * of the form MINSIGSTKSZ + constant. The constant is chosen rather
-     * ad hoc but sufficiently large. */
-    static char alt_stack[MINSIGSTKSZ + 5120 + BACKTRACELEN * sizeof(void*)];
-
-    stack_t ss;
-    ss.ss_sp = alt_stack;
-    ss.ss_size = sizeof(alt_stack);
-    ss.ss_flags = 0;
-    if (sigaltstack(&ss, NULL) == -1) {perror("sigaltstack"); exit(1);}
-    #if defined(__CYGWIN__) && defined(__x86_64__)
-    cygwin_setup_alt_stack();
-    #endif
-#endif
-}
-
-/* A trampoline to jump to after handling a signal.
- *
- * The jump to sig_on() uses cylongjmp(), which does not restore the
- * signal context. This is done for efficiency, as cysetjmp() is
- * significantly faster this way. But in order to get away from our alt
- * stack after handling a signal, we need an additional siglongjmp()
- * call to restore the signal context. This is the call from the signal
- * handler to this trampoline function.
- *
- * Setting this up requires some trickery:
- * (A) create a separate stack for this trampoline function
- * (B) start a new thread using this stack
- * (C) set a jump point on the trampoline stack using cysetjmp()
- * (D) exit the thread
- * (E) back in the main thread, jump to the point set at (C). Now we are
- *     on the trampoline stack
- * (F) set a jump point with savesigs=1. This is where we will jump to
- *     after handling a signal
- * (G) jump back to the main program
- *
- * NOTE: it may look strange to use threads for this, but there are not
- * a lot of good ways to get code running on an arbitrary stack. In
- * fact, POSIX recommends threads in
- * http://pubs.opengroup.org/onlinepubs/009695299/functions/makecontext.html
- */
-static void* _sig_on_trampoline(void* dummy)
-{
-    register int sig;
-
-    /* Reserve some unused stack space to prevent pthread_exit() from
-     * clobbering the stack that we care about. This is in particular
-     * needed on certain older GNU/Linux systems:
-     * https://trac.sagemath.org/ticket/25092#comment:6 */
-    char stack_guard[2048];
-
-    if (cysetjmp(trampoline_setup) == 0)
-        /* The argument to pthread_exit() does not matter. We use
-         * stack_guard to prevent GCC from optimizing away the
-         * stack_guard variable. */
-        pthread_exit(stack_guard);
-
-    sig = sigsetjmp(trampoline, 1);
-    reset_CPU();
-    cylongjmp(cysigs.env, sig);
-}
-
-static void setup_trampoline(void)
-{
-    int ret;
-    pthread_t child;
-    pthread_attr_t attr;
-    void* trampolinestack;
-    size_t trampolinestacksize = 1 << 16;
-
-    while (trampolinestacksize < PTHREAD_STACK_MIN) trampolinestacksize *= 2;
-#ifdef POSIX
-    trampolinestack = mmap(NULL, trampolinestacksize,
-            PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-    if (trampolinestack == MAP_FAILED) {perror("mmap"); exit(1);}
-#else
-    trampolinestack = malloc(trampolinestacksize);
-#endif
-    ret = pthread_attr_init(&attr);
-    if (ret) {errno = ret; perror("pthread_attr_init"); exit(1);}
-    ret = pthread_attr_setstack(&attr, trampolinestack, trampolinestacksize);
-    if (ret) {errno = ret; perror("pthread_attr_setstack"); exit(1);}
-    ret = pthread_create(&child, &attr, _sig_on_trampoline, NULL);
-    if (ret) {errno = ret; perror("pthread_create"); exit(1);}
-    pthread_attr_destroy(&attr);
-    ret = pthread_join(child, NULL);
-    if (ret) {errno = ret; perror("pthread_join"); exit(1);}
-
-    if (cysetjmp(cysigs.env) == 0)
-    {
-        cylongjmp(trampoline_setup, 1);
-    }
-}
-
-/* Print a message s and kill ourselves with signal sig */
-static void sigdie(int sig, const char* s)
-{
-    if (getenv("CYSIGNALS_CRASH_QUIET")) goto dienow;
-
-    print_sep();
-    print_backtrace();
-
-#if ENABLE_DEBUG_CYSIGNALS
-    /* Interrupt debugging is enabled, don't do enhanced backtraces as
-     * the user is probably using other debugging tools and we don't
-     * want to interfere with that. */
-#else
-#if !(defined(__APPLE__) || defined(__CYGWIN__))
-    /* See http://trac.sagemath.org/13889 for how Apple screwed this up */
-    /* On Cygwin this has never quite worked, and in particular when run
-       from the altstack handler it just results in fork errors, so disable
-       this feature for now */
-    if (getenv("CYSIGNALS_CRASH_NDEBUG") == NULL)
-        print_enhanced_backtrace();
-#endif
-#endif
-
-    if (s) {
-        fprintf(stderr,
-            "%s\n"
-            "This probably occurred because a *compiled* module has a bug\n"
-            "in it and is not properly wrapped with sig_on(), sig_off().\n"
-            "Python will now terminate.\n", s);
-        print_sep();
-    }
-
-dienow:
-    kill_thread_group(sig);
-
-    /* We should be dead! */
-    exit(128 + sig);
-}
 
 /* Reset all signal handlers and the signal mask to their defaults. */
 static inline void sig_reset_defaults(void) {
@@ -408,12 +175,14 @@ static inline void sig_reset_defaults(void) {
 static inline void sigdie_for_sig(int sig, int inside)
 {
     sig_reset_defaults();
-#ifdef POSIX
     if (inside) sigdie(sig, "An error occurred during signal handling.");
-#endif
+
     /* Quit Python with an appropriate message. */
     switch(sig)
     {
+        case SIGQUIT:
+            sigdie(sig, NULL);
+            break;  /* This will not be reached */
         case SIGILL:
             sigdie(sig, "Unhandled SIGILL: An illegal instruction occurred.");
             break;  /* This will not be reached */
@@ -423,17 +192,12 @@ static inline void sigdie_for_sig(int sig, int inside)
         case SIGFPE:
             sigdie(sig, "Unhandled SIGFPE: An unhandled floating point exception occurred.");
             break;  /* This will not be reached */
-        case SIGSEGV:
-            sigdie(sig, "Unhandled SIGSEGV: A segmentation fault occurred.");
-            break;  /* This will not be reached */
-    #ifdef POSIX
-        case SIGQUIT:
-            sigdie(sig, NULL);
-            break;  /* This will not be reached */
         case SIGBUS:
             sigdie(sig, "Unhandled SIGBUS: A bus error occurred.");
             break;  /* This will not be reached */
-    #endif
+        case SIGSEGV:
+            sigdie(sig, "Unhandled SIGSEGV: A segmentation fault occurred.");
+            break;  /* This will not be reached */
     };
     sigdie(sig, "Unknown signal received.\n");
 }
@@ -485,23 +249,23 @@ static void cysigs_interrupt_handler(int sig)
     {
         if (!cysigs.block_sigint && !PARI_SIGINT_block)
         {
-        #ifdef POSIX
+#ifdef POSIX
             /* Raise an exception so Python can see it */
             do_raise_exception(sig);
 
             /* Jump back to sig_on() (the first one if there is a stack) */
             siglongjmp(trampoline, sig);
-        #else
+#else
             cysigs.sig_mapped_to_FPE = sig;
             win32ctrlc += 1;
-            #if ENABLE_DEBUG_CYSIGNALS
-                if(cysigs.debug_level >=1)
+#if ENABLE_DEBUG_CYSIGNALS
+            if(cysigs.debug_level >=1)
                 {
                     fprintf(stderr, "Incremented win32ctrlc to %d\n", win32ctrlc);
                 }
-            #endif
+#endif
             return;
-        #endif
+#endif
         }
     }
     else
@@ -511,6 +275,7 @@ static void cysigs_interrupt_handler(int sig)
          * be called. */
         PyErr_SetInterrupt();
     }
+
     /* If we are here, we cannot handle the interrupt immediately, so
      * we store the signal number for later use.  But make sure we
      * don't overwrite a SIGHUP or SIGTERM which we already received. */
@@ -521,6 +286,11 @@ static void cysigs_interrupt_handler(int sig)
     }
 }
 
+/* Handler for SIGQUIT, SIGILL, SIGABRT, SIGFPE, SIGBUS, SIGSEGV
+ *
+ * Inside sig_on() (i.e. when cysigs.sig_on_count is positive), this
+ * raises an exception and jumps back to sig_on().
+ * Outside of sig_on(), we terminate Python. */
 static void cysigs_signal_handler(int sig)
 {
 #ifndef POSIX
@@ -538,28 +308,29 @@ static void cysigs_signal_handler(int sig)
     sig_atomic_t inside = cysigs.inside_signal_handler;
     cysigs.inside_signal_handler = 1;
 
-    if(inside == 0 && cysigs.sig_on_count > 0 && sig != SIGQUIT)
+    if (inside == 0 && cysigs.sig_on_count > 0 && sig != SIGQUIT)
 #else
-    int inside = 1; // not used for windows
+    int inside = 0; // not used for windows
     if(cysigs.sig_on_count > 0)
 #endif
     {
-        /* We are inside sig_on(), so we can handle the signal!*/
-    #if ENABLE_DEBUG_CYSIGNALS
+        /* We are inside sig_on(), so we can handle the signal! */
+#if ENABLE_DEBUG_CYSIGNALS
         if (cysigs.debug_level >= 1) {
             fprintf(stderr, "\n*** SIG %i *** inside sig_on\n", sig);
             if (cysigs.debug_level >= 3) print_backtrace();
             fflush(stderr);
             gettimeofday(&sigtime, NULL);
         }
-    #endif
-    #ifdef POSIX
+#endif
+
+#ifdef POSIX
         /* Raise an exception so Python can see it */
         do_raise_exception(sig);
 
         /* Jump back to sig_on() (the first one if there is a stack) */
         siglongjmp(trampoline, sig);
-    #else
+#else
         /* Any signal which needs to be handled immediately, is
          * mapped to FPE by setting sig_mapped_to_FPE and raising
          * SIGFPE.  SIGFPE is the only signal which supports calling
@@ -569,18 +340,18 @@ static void cysigs_signal_handler(int sig)
         {
             if (cysigs.sig_mapped_to_FPE)
             {
-                #if ENABLE_DEBUG_CYSIGNALS
+#if ENABLE_DEBUG_CYSIGNALS
                 if(cysigs.debug_level >=1)
 				    fprintf(stderr,  "Mapped from %d\n", cysigs.sig_mapped_to_FPE);
-                #endif
+#endif
                 int mapped_sig = cysigs.sig_mapped_to_FPE;
                 cysigs.sig_mapped_to_FPE = 0;
                 do_raise_exception(mapped_sig);
                 reset_CPU();
-                #if ENABLE_DEBUG_CYSIGNALS
+#if ENABLE_DEBUG_CYSIGNALS
                 if(cysigs.debug_level >=1)
                     fprintf(stderr,  "Calling longjmp\n");
-                #endif
+#endif
                 longjmp(cysigs.env, mapped_sig);
             }
             else /* This really is a floating point exception */
@@ -592,18 +363,18 @@ static void cysigs_signal_handler(int sig)
         }
         else
         {
-            #if ENABLE_DEBUG_CYSIGNALS
-				if(cysigs.debug_level >=1)
+#if ENABLE_DEBUG_CYSIGNALS
+            if(cysigs.debug_level >=1)
 					fprintf(stderr,  "inside sig_on/sig_off\n");
-            #endif
+#endif
             cysigs.sig_mapped_to_FPE = sig;
-            #if ENABLE_DEBUG_CYSIGNALS
-                if(cysigs.debug_level >=1)
+#if ENABLE_DEBUG_CYSIGNALS
+            if(cysigs.debug_level >=1)
                     fprintf(stderr,  "raising SIGFPE\n");
-            #endif
+#endif
             raise(SIGFPE);
         }
-    #endif
+#endif
     }
     else
     {
@@ -613,6 +384,186 @@ static void cysigs_signal_handler(int sig)
          * them in case something goes wrong as of now. */
         sigdie_for_sig(sig, inside);
     }
+}
+
+
+/* A trampoline to jump to after handling a signal.
+ *
+ * The jump to sig_on() uses cylongjmp(), which does not restore the
+ * signal context. This is done for efficiency, as cysetjmp() is
+ * significantly faster this way. But in order to get away from our alt
+ * stack after handling a signal, we need an additional siglongjmp()
+ * call to restore the signal context. This is the call from the signal
+ * handler to this trampoline function.
+ *
+ * Setting this up requires some trickery:
+ * (A) create a separate stack for this trampoline function
+ * (B) start a new thread using this stack
+ * (C) set a jump point on the trampoline stack using cysetjmp()
+ * (D) exit the thread
+ * (E) back in the main thread, jump to the point set at (C). Now we are
+ *     on the trampoline stack
+ * (F) set a jump point with savesigs=1. This is where we will jump to
+ *     after handling a signal
+ * (G) jump back to the main program
+ *
+ * NOTE: it may look strange to use threads for this, but there are not
+ * a lot of good ways to get code running on an arbitrary stack. In
+ * fact, POSIX recommends threads in
+ * http://pubs.opengroup.org/onlinepubs/009695299/functions/makecontext.html
+ */
+static void* _sig_on_trampoline(void* dummy)
+{
+    register int sig;
+
+    /* Reserve some unused stack space to prevent pthread_exit() from
+     * clobbering the stack that we care about. This is in particular
+     * needed on certain older GNU/Linux systems:
+     * https://trac.sagemath.org/ticket/25092#comment:6 */
+    char stack_guard[2048];
+
+    if (cysetjmp(trampoline_setup) == 0)
+        /* The argument to pthread_exit() does not matter. We use
+         * stack_guard to prevent GCC from optimizing away the
+         * stack_guard variable. */
+        pthread_exit(stack_guard);
+
+    sig = sigsetjmp(trampoline, 1);
+    reset_CPU();
+    cylongjmp(cysigs.env, sig);
+}
+
+
+static void setup_trampoline(void)
+{
+    int ret;
+    pthread_t child;
+    pthread_attr_t attr;
+    void* trampolinestack;
+    size_t trampolinestacksize = 1 << 16;
+
+    while (trampolinestacksize < PTHREAD_STACK_MIN) trampolinestacksize *= 2;
+#ifdef POSIX
+    trampolinestack = mmap(NULL, trampolinestacksize,
+            PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+    if (trampolinestack == MAP_FAILED) {perror("mmap"); exit(1);}
+
+#else
+    trampolinestack = malloc(trampolinestacksize);
+#endif
+    ret = pthread_attr_init(&attr);
+    if (ret) {errno = ret; perror("pthread_attr_init"); exit(1);}
+    ret = pthread_attr_setstack(&attr, trampolinestack, trampolinestacksize);
+    if (ret) {errno = ret; perror("pthread_attr_setstack"); exit(1);}
+    ret = pthread_create(&child, &attr, _sig_on_trampoline, NULL);
+    if (ret) {errno = ret; perror("pthread_create"); exit(1);}
+    pthread_attr_destroy(&attr);
+    ret = pthread_join(child, NULL);
+    if (ret) {errno = ret; perror("pthread_join"); exit(1);}
+
+    if (cysetjmp(cysigs.env) == 0)
+    {
+        cylongjmp(trampoline_setup, 1);
+    }
+}
+
+
+/* This calls sig_raise_exception() to actually raise the exception. */
+static void do_raise_exception(int sig)
+{
+#if ENABLE_DEBUG_CYSIGNALS
+    struct timeval raisetime;
+    if (cysigs.debug_level >= 2) {
+        gettimeofday(&raisetime, NULL);
+        long delta_ms = (raisetime.tv_sec - sigtime.tv_sec)*1000L + ((long)raisetime.tv_usec - (long)sigtime.tv_usec)/1000;
+        PyGILState_STATE gilstate = PyGILState_Ensure();
+        fprintf(stderr, "do_raise_exception(sig=%i)\nPyErr_Occurred() = %p\nRaising Python exception %li ms after signal...\n",
+            sig, PyErr_Occurred(), delta_ms);
+        PyGILState_Release(gilstate);
+        fflush(stderr);
+    }
+#endif
+
+    /* Call Cython function to raise exception */
+    sig_raise_exception(sig, cysigs.s);
+}
+
+
+/* This will be called during _sig_on_postjmp() when an interrupt was
+ * received *before* the call to sig_on(). */
+static void _sig_on_interrupt_received(void)
+{
+#ifdef POSIX
+    /* Momentarily block signals to avoid race conditions */
+    sigset_t oldset;
+    sigprocmask(SIG_BLOCK, &sigmask_with_sigint, &oldset);
+
+#endif
+    do_raise_exception(cysigs.interrupt_received);
+    cysigs.sig_on_count = 0;
+    cysigs.interrupt_received = 0;
+    PARI_SIGINT_pending = 0;
+
+#ifdef POSIX
+    sigprocmask(SIG_SETMASK, &oldset, NULL);
+#endif
+}
+
+static inline void reset_signal_mask()
+{
+    cysigs.inside_signal_handler = 0;
+#ifdef POSIX
+    sigprocmask(SIG_SETMASK, &default_sigmask, NULL);
+#else
+    win32ctrlc = 0;
+#endif
+}
+
+/* Cleanup after cylongjmp() (reset signal mask to the default, set
+ * sig_on_count to zero) */
+static void _sig_on_recover(void)
+{
+    cysigs.block_sigint = 0;
+    PARI_SIGINT_block = 0;
+    cysigs.sig_on_count = 0;
+    cysigs.interrupt_received = 0;
+    PARI_SIGINT_pending = 0;
+
+    reset_signal_mask();
+}
+
+/* Give a warning that sig_off() was called without sig_on() */
+static void _sig_off_warning(const char* file, int line)
+{
+    char buf[320];
+    snprintf(buf, sizeof(buf), "sig_off() without sig_on() at %s:%i", file, line);
+
+    /* Raise a warning with the Python GIL acquired */
+    PyGILState_STATE gilstate_save = PyGILState_Ensure();
+    PyErr_WarnEx(PyExc_RuntimeWarning, buf, 2);
+    PyGILState_Release(gilstate_save);
+
+    print_backtrace();
+}
+
+
+static void setup_alt_stack(void)
+{
+#ifdef POSIX
+    /* Static space for the alternate signal stack. The size should be
+     * of the form MINSIGSTKSZ + constant. The constant is chosen rather
+     * ad hoc but sufficiently large. */
+    static char alt_stack[MINSIGSTKSZ + 5120 + BACKTRACELEN * sizeof(void*)];
+
+    stack_t ss;
+    ss.ss_sp = alt_stack;
+    ss.ss_size = sizeof(alt_stack);
+    ss.ss_flags = 0;
+    if (sigaltstack(&ss, NULL) == -1) {perror("sigaltstack"); exit(1);}
+#if defined(__CYGWIN__) && defined(__x86_64__)
+    cygwin_setup_alt_stack();
+#endif
+#endif
 }
 
 
@@ -701,61 +652,121 @@ static void setup_cysignals_handlers(void)
 
 #endif
 
-static inline void reset_signal_mask()
+static void print_sep(void)
 {
-    cysigs.inside_signal_handler = 0;
-#ifdef POSIX
-	sigprocmask(SIG_SETMASK, &default_sigmask, NULL);
-#else
-	win32ctrlc = 0;
+    fputs("------------------------------------------------------------------------\n",
+            stderr);
+    fflush(stderr);
+}
+
+/* Print a backtrace if supported by libc */
+static void print_backtrace()
+{
+#if HAVE_BACKTRACE
+    void* backtracebuffer[BACKTRACELEN];
+    fflush(stderr);
+    int btsize = backtrace(backtracebuffer, BACKTRACELEN);
+    if (btsize)
+        backtrace_symbols_fd(backtracebuffer, btsize, 2);
+    else
+        fputs("(no backtrace available)\n", stderr);
+    print_sep();
 #endif
 }
 
-/* Cleanup after cylongjmp() (reset signal mask to the default, set
- * sig_on_count to zero) */
-static void _sig_on_recover(void)
-{
-    cysigs.block_sigint = 0;
-    PARI_SIGINT_block = 0;
-    cysigs.sig_on_count = 0;
-    cysigs.interrupt_received = 0;
-    PARI_SIGINT_pending = 0;
-
-    reset_signal_mask();
-}
-
-/* This will be called during _sig_on_postjmp() when an interrupt was
- * received *before* the call to sig_on(). */
-static void _sig_on_interrupt_received(void)
+/* Print a backtrace using gdb */
+static void print_enhanced_backtrace(void)
 {
 #ifdef POSIX
-    /* Momentarily block signals to avoid race conditions */
-    sigset_t oldset;
-    sigprocmask(SIG_BLOCK, &sigmask_with_sigint, &oldset);
+    /* Bypass Linux Yama restrictions on ptrace() to allow debugging */
+    /* See https://www.kernel.org/doc/Documentation/security/Yama.txt */
+#ifdef PR_SET_PTRACER
+    prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0);
 #endif
-    do_raise_exception(cysigs.interrupt_received);
-    cysigs.sig_on_count = 0;
-    cysigs.interrupt_received = 0;
-    PARI_SIGINT_pending = 0;
 
-#ifdef POSIX
-    sigprocmask(SIG_SETMASK, &oldset, NULL);
+    /* Flush all buffers before forking */
+    fflush(stdout);
+    fflush(stderr);
+
+    pid_t parent_pid = getpid();
+    pid_t pid = fork();
+
+    if (pid < 0)
+    {
+        /* Failed to fork: no problem, just ignore */
+        perror("fork");
+        return;
+    }
+
+    if (pid == 0) { /* child */
+        /* Redirect all output to stderr */
+        dup2(2, 1);
+
+        /* We deliberately put these variables on the stack to avoid
+         * malloc() calls, the heap might be messed up! */
+        char path[1024];
+        char pid_str[32];
+        char* argv[5];
+
+        snprintf(path, sizeof(path), "cysignals-CSI");
+        snprintf(pid_str, sizeof(pid_str), "%i", parent_pid);
+
+        argv[0] = "cysignals-CSI";
+        argv[1] = "--no-color";
+        argv[2] = "--pid";
+        argv[3] = pid_str;
+        argv[4] = NULL;
+        execvp(path, argv);
+        perror("Failed to execute cysignals-CSI");
+        exit(2);
+    }
+    /* Wait for cysignals-CSI to finish */
+    waitpid(pid, NULL, 0);
+
+    print_sep();
 #endif
 }
 
-/* Give a warning that sig_off() was called without sig_on() */
-static void _sig_off_warning(const char* file, int line)
+
+/* Print a message s and kill ourselves with signal sig */
+static void sigdie(int sig, const char* s)
 {
-    char buf[320];
-    snprintf(buf, sizeof(buf), "sig_off() without sig_on() at %s:%i", file, line);
+    if (getenv("CYSIGNALS_CRASH_QUIET")) goto dienow;
 
-    /* Raise a warning with the Python GIL acquired */
-    PyGILState_STATE gilstate_save = PyGILState_Ensure();
-    PyErr_WarnEx(PyExc_RuntimeWarning, buf, 2);
-    PyGILState_Release(gilstate_save);
-
+    print_sep();
     print_backtrace();
+
+#if ENABLE_DEBUG_CYSIGNALS
+    /* Interrupt debugging is enabled, don't do enhanced backtraces as
+     * the user is probably using other debugging tools and we don't
+     * want to interfere with that. */
+#else
+#if !(defined(__APPLE__) || defined(__CYGWIN__))
+    /* See http://trac.sagemath.org/13889 for how Apple screwed this up */
+    /* On Cygwin this has never quite worked, and in particular when run
+       from the altstack handler it just results in fork errors, so disable
+       this feature for now */
+    if (getenv("CYSIGNALS_CRASH_NDEBUG") == NULL)
+        print_enhanced_backtrace();
+#endif
+#endif
+
+    if (s) {
+        fprintf(stderr,
+            "%s\n"
+            "This probably occurred because a *compiled* module has a bug\n"
+            "in it and is not properly wrapped with sig_on(), sig_off().\n"
+            "Python will now terminate.\n", s);
+        print_sep();
+    }
+
+dienow:
+    kill_thread_group(sig);
+
+    /* We should be dead! */
+    exit(128 + sig);
 }
+
 
 /* Finally include the macros and inline functions for use in
  * signals.pyx. These require some of the above functions, therefore

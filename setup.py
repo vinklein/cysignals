@@ -50,7 +50,6 @@ data_files = []
 
 # if on windows platform, patch distutils lib.
 if sys.platform == "win32":
-    # scripts = glob(opj("winutil", "*"))
     utilspath = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'winutil')
     sys.path.append(utilspath)
     from patchdistutils import runtime_patch
@@ -99,7 +98,6 @@ classifiers = [
 
 # Run Distutils
 class build(_build):
-
     def run(self):
         """
         Run ``./configure`` and Cython first.
@@ -112,7 +110,6 @@ class build(_build):
 
         dist = self.distribution
         ext_modules = dist.ext_modules
-
         if ext_modules:
             dist.ext_modules[:] = self.cythonize(ext_modules)
 

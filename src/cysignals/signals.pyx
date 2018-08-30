@@ -41,6 +41,7 @@ cdef extern from "implementation.c":
     void _sig_off_warning(const char*, int) nogil
     void setup_alt_stack() nogil
 
+
 class AlarmInterrupt(KeyboardInterrupt):
     """
     Exception class for :func:`alarm` timeouts.
@@ -90,13 +91,15 @@ cdef int sig_raise_exception "sig_raise_exception"(int sig, const char* msg) exc
     if PyErr_Occurred():
         return 0
 
-    if sig == SIGTERM:
+    if sig == SIGHUP or sig == SIGTERM:
         # Redirect stdin from /dev/null to close interactive sessions
         _ = freopen("/dev/null", "r", stdin)
         # This causes Python to exit
         raise SystemExit
     elif sig == SIGINT:
         raise KeyboardInterrupt
+    elif sig == SIGALRM:
+        raise AlarmInterrupt
     elif sig == SIGILL:
         if msg is NULL:
             msg = "Illegal instruction"
@@ -109,24 +112,15 @@ cdef int sig_raise_exception "sig_raise_exception"(int sig, const char* msg) exc
         if msg is NULL:
             msg = "Floating point exception"
         PyErr_SetString(FloatingPointError, msg)
+    elif sig == SIGBUS:
+        if msg is NULL:
+            msg = "Bus error"
+        PyErr_SetString(SignalError, msg)
     elif sig == SIGSEGV:
         if msg is NULL:
             msg = "Segmentation fault"
         PyErr_SetString(SignalError, msg)
-    IF UNAME_SYSNAME != 'Windows':
-        if sig == SIGHUP:
-            # Redirect stdin from /dev/null to close interactive sessions
-            _ = freopen("/dev/null", "r", stdin)
-            # This causes Python to exit
-            raise SystemExit
-        elif sig == SIGALRM:
-            raise AlarmInterrupt
-        elif sig == SIGBUS:
-            if msg is NULL:
-                msg = "Bus error"
-            PyErr_SetString(SignalError, msg)
-
-    if PyErr_Occurred() is NULL:
+    else:
        raise SystemError(f"unknown signal number {sig}")
 
 
@@ -203,7 +197,6 @@ def init_cysignals():
     import signal
     old = signal.signal(signal.SIGINT, python_check_interrupt)
 
-
     setup_alt_stack()
     setup_cysignals_handlers()
 
@@ -211,6 +204,7 @@ def init_cysignals():
     _set_debug_level(2)
 
     return old
+
 
 def _setup_alt_stack():
     """
