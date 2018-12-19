@@ -161,4 +161,5 @@ void signal_after_delay(int signum, long ms)
     exit(2); /* This should NOT be reached */
 }
 
+void signals_after_delay(int signum, long ms, long interval, int n) {}
 #endif
