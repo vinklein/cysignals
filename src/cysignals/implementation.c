@@ -124,9 +124,9 @@ static int sig_raise_exception(int sig, const char* msg);
 static inline void kill_thread_group(int sig)
 {
 #ifdef POSIX
-	kill(getpid(), sig);
+    kill(getpid(), sig);
 #else
-	raise(sig);
+    raise(sig);
 #endif
 }
 
@@ -338,7 +338,7 @@ static void cysigs_signal_handler(int sig)
             {
 #if ENABLE_DEBUG_CYSIGNALS
                 if(cysigs.debug_level >=1)
-				    fprintf(stderr,  "Mapped from %d\n", cysigs.sig_mapped_to_FPE);
+                    fprintf(stderr,  "Mapped from %d\n", cysigs.sig_mapped_to_FPE);
 #endif
                 int mapped_sig = cysigs.sig_mapped_to_FPE;
                 cysigs.sig_mapped_to_FPE = 0;
@@ -361,7 +361,7 @@ static void cysigs_signal_handler(int sig)
         {
 #if ENABLE_DEBUG_CYSIGNALS
             if(cysigs.debug_level >=1)
-					fprintf(stderr,  "inside sig_on/sig_off\n");
+                fprintf(stderr,  "inside sig_on/sig_off\n");
 #endif
             cysigs.sig_mapped_to_FPE = sig;
 #if ENABLE_DEBUG_CYSIGNALS
