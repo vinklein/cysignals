@@ -549,6 +549,7 @@ static void _sig_off_warning(const char* file, int line)
 
 static void setup_alt_stack(void)
 {
+#if HAVE_SIGALTSTACK
     /* Static space for the alternate signal stack. The size should be
      * of the form MINSIGSTKSZ + constant. The constant is chosen rather
      * ad hoc but sufficiently large. */

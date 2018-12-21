@@ -16,8 +16,7 @@ if sys.platform == "win32":
 # Option "-D_hypot=hypot" is mandatory for mingw64
 # See : https://github.com/python/cpython/pull/880
 extensions = [Extension('cysignals_example',
-                        ['cysignals_example.pyx'],
-                        extra_compile_args=['-D_hypot=hypot'])]
+                        ['cysignals_example.pyx'])]
 
 
 class build(_build):

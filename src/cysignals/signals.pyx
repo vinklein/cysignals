@@ -162,7 +162,9 @@ cdef int sig_raise_exception "sig_raise_exception"(int sig, const char* msg) exc
             msg = "Bus error"
         PyErr_SetString(SignalError, msg)
     else:
-        PyErr_Format( SystemError,"unknown signal number %i",sig)# Save exception in cysigs.exc_value
+        PyErr_Format( SystemError,"unknown signal number %i",sig)
+
+    # Save exception in cysigs.exc_value
     cdef PyObject* typ
     cdef PyObject* val
     cdef PyObject* tb

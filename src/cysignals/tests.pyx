@@ -52,8 +52,6 @@ from .memory cimport *
 cdef extern from "tests_helper.c" nogil:
     bint on_alt_stack()
     void ms_sleep(long ms)
-
-cdef extern from 'tests_helper.c':
     void signal_after_delay(int signum, long ms)
     void signals_after_delay(int signum, long ms, long interval, int n)
 
@@ -139,6 +137,7 @@ class return_exception(object):
         except BaseException as e:
             return e
 
+
 def interrupt_after_delay(ms_delay=500):
     """
     Send an interrupt signal (``SIGINT``) to the process after a delay of
@@ -154,14 +153,14 @@ def interrupt_after_delay(ms_delay=500):
     This function is meant to test interrupt functionality.  We demonstrate here
     how to test that an infinite loop can be interrupted::
 
-    >>> import cysignals.tests
-    >>> try:# doctest: +SKIP_WINDOWS
-    ...     cysignals.tests.interrupt_after_delay()
-    ...     while True:
-    ...         pass
-    ... except KeyboardInterrupt:
-    ...     print("Caught KeyboardInterrupt")
-    Caught KeyboardInterrupt
+        >>> import cysignals.tests
+        >>> try:  # doctest: +SKIP_WINDOWS
+        ...     cysignals.tests.interrupt_after_delay()
+        ...     while True:
+        ...         pass
+        ... except KeyboardInterrupt:
+        ...     print("Caught KeyboardInterrupt")
+        Caught KeyboardInterrupt
 
     """
     signal_after_delay(SIGINT, ms_delay)
@@ -554,9 +553,9 @@ def test_signal_quit(long delay=DEFAULT_DELAY):
     We run Python in a subprocess and make it raise a SIGQUIT under
     ``sig_on()``.  This should cause Python to exit::
 
-    >>> from cysignals.tests import subpython_err
-    >>> subpython_err('from cysignals.tests import *; test_signal_quit()') # doctest: +SKIP_WINDOWS
-    ---------------------------------------------------------------------...
+        >>> from cysignals.tests import subpython_err
+        >>> subpython_err('from cysignals.tests import *; test_signal_quit()') # doctest: +SKIP_WINDOWS
+        ---------------------------------------------------------------------...
 
     """
     # The sig_on() shouldn't make a difference for SIGQUIT
@@ -647,9 +646,7 @@ def unguarded_abort():
         in it and is not properly wrapped with sig_on(), sig_off().
         Python will now terminate.
         ------------------------------------------------------------------------
-        >>> subpython_err('from cysignals.tests import *; unguarded_abort()') # doctest: +SKIP
-        <BLANKLINE>
-        ...
+        >>> subpython_err('from cysignals.tests import *; unguarded_abort()') # doctest: +SKIP_WINDOWS
         ---------------------------------------------------------------------...
         Unhandled SIGABRT: An abort() occurred.
         This probably occurred because a *compiled* module has a bug
@@ -702,14 +699,14 @@ def test_bad_str(long delay=DEFAULT_DELAY):
 
     We run Python in a subprocess and induce an error during the signal handler::
 
-    >>> from cysignals.tests import subpython_err
-    >>> subpython_err('from cysignals.tests import *; test_bad_str()') # doctest: +SKIP_WINDOWS
-    ---------------------------------------------------------------------...
-    An error occurred during signal handling.
-    This probably occurred because a *compiled* module has a bug
-    in it and is not properly wrapped with sig_on(), sig_off().
-    Python will now terminate.
-    ------------------------------------------------------------------------
+        >>> from cysignals.tests import subpython_err
+        >>> subpython_err('from cysignals.tests import *; test_bad_str()') # doctest: +SKIP_WINDOWS
+        ---------------------------------------------------------------------...
+        An error occurred during signal handling.
+        This probably occurred because a *compiled* module has a bug
+        in it and is not properly wrapped with sig_on(), sig_off().
+        Python will now terminate.
+        ------------------------------------------------------------------------
 
     """
     cdef char* s = <char*>(16)
@@ -754,7 +751,8 @@ def test_sig_on_inside_try(long delay=DEFAULT_DELAY):
     except RuntimeError:
         pass
 
-def test_interrupt_bomb(long n = 100, long p = 10):
+
+def test_interrupt_bomb(long n=100, long p=10):
     """
     Have `p` processes each sending `n` interrupts in very quick
     succession and see what happens :-)
