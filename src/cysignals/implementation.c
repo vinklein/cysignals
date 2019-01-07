@@ -347,13 +347,13 @@ static void cysigs_signal_handler(int sig)
                 if(cysigs.debug_level >=1)
                     fprintf(stderr,  "Calling longjmp\n");
 #endif
-                siglongjmp(trampoline, sig);
+                longjmp(cysigs.env, sig);
             }
             else /* This really is a floating point exception */
             {
                 reset_CPU();
                 do_raise_exception(SIGFPE);
-                siglongjmp(trampoline, SIGFPE);
+                longjmp(cysigs.env, SIGFPE);
             }
         }
         else
@@ -651,7 +651,6 @@ static void setup_cysignals_handlers(void)
         exit(1);
     }
     exc_handler = AddVectoredExceptionHandler(1, SIGSEGV_generator);
-    setup_trampoline();
 }
 
 #endif
