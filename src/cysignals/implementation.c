@@ -72,7 +72,6 @@ static int PARI_SIGINT_pending = 0;
 // POSIX
 #ifndef POSIX
 //Windows specifics
-#include <float.h>
 
 #ifndef __MINGW32__
 #  define inline __inline
