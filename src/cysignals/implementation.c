@@ -294,10 +294,15 @@ static void cysigs_signal_handler(int sig)
     }
 #endif
 
+#ifdef POSIX
     sig_atomic_t inside = cysigs.inside_signal_handler;
     cysigs.inside_signal_handler = 1;
 
     if (inside == 0 && cysigs.sig_on_count > 0 && sig != SIGQUIT)
+#else
+    int inside = 0; // not used for windows
+    if(cysigs.sig_on_count > 0)
+#endif
     {
         /* We are inside sig_on(), so we can handle the signal! */
 #if ENABLE_DEBUG_CYSIGNALS
@@ -329,15 +334,15 @@ static void cysigs_signal_handler(int sig)
                 if(cysigs.debug_level >=1)
                     fprintf(stderr,  "Mapped from %d\n", cysigs.sig_mapped_to_FPE);
 #endif
-                int mapped_sig = cysigs.sig_mapped_to_FPE;
+                sig = cysigs.sig_mapped_to_FPE;
                 cysigs.sig_mapped_to_FPE = 0;
-                do_raise_exception(mapped_sig);
+                do_raise_exception(sig);
                 reset_CPU();
 #if ENABLE_DEBUG_CYSIGNALS
                 if(cysigs.debug_level >=1)
                     fprintf(stderr,  "Calling longjmp\n");
 #endif
-                longjmp(cysigs.env, mapped_sig);
+                longjmp(cysigs.env, sig);
             }
             else /* This really is a floating point exception */
             {
