@@ -294,15 +294,10 @@ static void cysigs_signal_handler(int sig)
     }
 #endif
 
-#ifdef POSIX
     sig_atomic_t inside = cysigs.inside_signal_handler;
     cysigs.inside_signal_handler = 1;
 
     if (inside == 0 && cysigs.sig_on_count > 0 && sig != SIGQUIT)
-#else
-    int inside = 0; // not used for windows
-    if(cysigs.sig_on_count > 0)
-#endif
     {
         /* We are inside sig_on(), so we can handle the signal! */
 #if ENABLE_DEBUG_CYSIGNALS
