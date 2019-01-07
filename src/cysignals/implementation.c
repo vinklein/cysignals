@@ -648,6 +648,7 @@ static void setup_cysignals_handlers(void)
         exit(1);
     }
     exc_handler = AddVectoredExceptionHandler(1, SIGSEGV_generator);
+    setup_trampoline();
 }
 
 #endif
