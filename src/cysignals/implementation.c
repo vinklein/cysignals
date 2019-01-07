@@ -80,6 +80,8 @@ static int win32ctrlc;
 #endif
 //end Windows specifics
 
+#define ENABLE_DEBUG_CYSIGNALS 3
+
 #if ENABLE_DEBUG_CYSIGNALS
 static struct timeval sigtime;  /* Time of signal */
 #endif
