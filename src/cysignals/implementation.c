@@ -337,18 +337,16 @@ static void cysigs_signal_handler(int sig)
                 sig = cysigs.sig_mapped_to_FPE;
                 cysigs.sig_mapped_to_FPE = 0;
                 do_raise_exception(sig);
-                reset_CPU();
 #if ENABLE_DEBUG_CYSIGNALS
                 if(cysigs.debug_level >=1)
                     fprintf(stderr,  "Calling longjmp\n");
 #endif
-                longjmp(cysigs.env, sig);
+                siglongjmp(trampoline, sig);
             }
             else /* This really is a floating point exception */
             {
-                reset_CPU();
                 do_raise_exception(SIGFPE);
-                longjmp(cysigs.env, SIGFPE);
+                siglongjmp(trampoline, SIGFPE);
             }
         }
         else
