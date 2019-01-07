@@ -81,11 +81,6 @@ static int win32ctrlc;
 #endif
 //end Windows specifics
 
-#ifndef PTHREAD_STACK_MIN
-// Happen with mingw64
-#define PTHREAD_STACK_MIN 65536
-#endif
-
 #if ENABLE_DEBUG_CYSIGNALS
 static struct timeval sigtime;  /* Time of signal */
 #endif
