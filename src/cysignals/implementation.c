@@ -95,6 +95,11 @@ static sigset_t default_sigmask;
 
 /* default_sigmask with SIGHUP, SIGINT, SIGALRM added. */
 static sigset_t sigmask_with_sigint;
+#else
+/* If we don't have sigprocmask(), assume that we don't have siglongjmp() either */
+#define sigjmp_buf jmp_buf
+#define sigsetjmp(env, savesigs) setjmp(env)
+#define siglongjmp longjmp
 #endif
 
 /* A trampoline to jump to after handling a signal. */
