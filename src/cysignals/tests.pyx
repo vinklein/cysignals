@@ -257,7 +257,7 @@ def test_sig_on_cython(long delay=DEFAULT_DELAY):
     TESTS::
 
         >>> from cysignals.tests import *
-        >>> test_sig_on_cython()     # doctest: +SKIP_WINDOWS
+        >>> test_sig_on_cython()
         KeyboardInterrupt()
 
     """
