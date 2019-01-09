@@ -150,9 +150,26 @@ typedef struct {
 DWORD WINAPI thread_signal_after_delay(LPVOID lpParam) {
     psad_data param = (psad_data) lpParam;
     ms_sleep(param->ms);
+    fprintf(stdout, "call raise(%i), ms:%i\n", param->signum, param->ms);
     raise(param->signum);
+    fprintf(stdout, "after raise call\n");
+//    Sleep(2000);
     return 0;
 }
+
+//DWORD WINAPI thread_signal_after_delay(void* data) {
+//    Sleep(200);
+//    printf("T1\n");
+//    raise(SIGILL);
+////    raise(SIGINT);
+//    printf("Bob\n");
+////    raise(SIGINT);
+////    raise(SIGINT);
+////    raise(SIGINT);
+////    raise(SIGINT);
+//    printf("Still here\n");
+//    return 0;
+//}
 
 void signal_after_delay(int signum, long ms)
 {
@@ -161,17 +178,31 @@ void signal_after_delay(int signum, long ms)
     param->signum = signum;
     param->ms = ms;
 
+//    HANDLE thread = CreateThread(NULL, 0, thread_signal_after_delay, NULL, 0, NULL);
     HANDLE thread = CreateThread(NULL, 0, thread_signal_after_delay, param, 0, NULL);
     if(thread)
     {
+//        raise(SIGINT);
         /* Wait 2 seconds for the signal raise */
-        WaitForSingleObject(thread, 2000);
+        int ret = WaitForSingleObject(thread, 20000);
+        switch(ret){
+            case WAIT_ABANDONED: fprintf(stderr, "WAIT_ABANDONED\n");
+                break;
+            case WAIT_OBJECT_0: fprintf(stderr, "WAIT_OBJECT_0\n");
+                break;
+            case WAIT_TIMEOUT: fprintf(stderr, "WAIT_TIMEOUT\n");
+                break;
+            case WAIT_FAILED: fprintf(stderr, "WAIT_FAILED\n");
+                break;
+            default: fprintf(stderr, "event '%i'\n", ret);
+        }
         fprintf(stderr, "raise(%i) has not killed the main thread\n", signum);
     }
     else
     {
         fprintf(stderr, "CreateThread failed\n");
     }
+    fprintf(stdout, "OMG ! This sould not be reached.");
     exit(2); /* This should NOT be reached */
 }
 
