@@ -182,7 +182,6 @@ void signal_after_delay(int signum, long ms)
     HANDLE thread = CreateThread(NULL, 0, thread_signal_after_delay, param, 0, NULL);
     if(thread)
     {
-//        raise(SIGINT);
         /* Wait 2 seconds for the signal raise */
         int ret = WaitForSingleObject(thread, 20000);
         switch(ret){
