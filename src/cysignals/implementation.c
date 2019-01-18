@@ -497,6 +497,7 @@ static void _sig_on_recover(void)
 #ifdef HAVE_SIGPROCMASK
     sigprocmask(SIG_SETMASK, &default_sigmask, NULL);
 #endif
+
     cysigs.inside_signal_handler = 0;
 }
 
